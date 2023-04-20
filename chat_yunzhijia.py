@@ -47,6 +47,8 @@ chat_history = []
 
 
 def qa(question, openid):
+    print(question, openid)
+
     url = 'https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=3fb3d03a665e4dfc955335d680410515'
 
     result = chatbot({"question": question, "chat_history": chat_history})

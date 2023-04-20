@@ -1,0 +1,8 @@
+langchain
+openai
+numpy
+tiktoken
+unstructured
+uvicorn
+jinja2
+faiss-cpu

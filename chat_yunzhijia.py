@@ -55,9 +55,18 @@ def qa(question, openid):
 
     chat_history.append((result["question"], result["answer"]))
 
-    response = result["answer"] + f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"
-    print(response)
-    requests.post(url, json={"content": response})
+    if result["answer"].find("未找到") >= 0 and result["answer"].rfind("联系售后") > 0:
+        response = result["answer"]
+    else:
+        response = result["answer"] + f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"
+
+    response = {
+        "content": response,
+        "notifyParams": [{"type": "openIds", "values": [openid]}]
+    }
+    print("\n", response)
+
+    requests.post(url, json=response)
 
 
 @app.post("/chat")

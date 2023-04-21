@@ -66,6 +66,7 @@ def prepare_dir_dataset(base_dir, db=None):
         db.save_local(FAISS_DB_PATH)
         print("Saved vectors to %s" % FAISS_DB_PATH)
 
+
 # 导入语雀导出的md文件到vector db，针对知识库piaozone/implement
 def ingest_yq_piaozone_implement():
     path = '/Users/qinqiang02/Desktop/fpy知识库/piaozone%2Fimplement_'

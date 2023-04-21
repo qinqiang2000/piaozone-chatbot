@@ -11,16 +11,12 @@ template = """给出以下聊天记录和一个后续问题，重新表述后续
 
 fpy_condense_question_prompt = PromptTemplate.from_template(template)
 
-template = """你是一个发票云知识库的AI助理。你利用以下上下文来回答最后的问题。如果你不知道答案，请回答：“在发票云知识库未找到相关资料，请联系售后”，不要试图编造一个答案。
-上下文:\"""
-
+template = """你是一个提供有用建议的人工智能助手。你得到的是来自发票云知识库的以下摘录部分和一个问题。根据提供的上下文，提供一个对话式的答案。如果你不知道答案，请回答：“在发票云知识库未找到相关资料，请联系售后”，不要试图编造一个答案。
+问题: {question}
+=========
 {context}
-\"""
-问题:\"""
- {question}
-\"""
-
-有用的回答:"""
+=========
+用Markdown回答:"""
 
 # qa_prompt = PromptTemplate.from_template(template)
 fpy_qa_prompt = PromptTemplate(

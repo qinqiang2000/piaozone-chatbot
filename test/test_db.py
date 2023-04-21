@@ -28,7 +28,7 @@ def get_citations(results):
 
 
 def db_test(rds):
-    query = "如何查看剩余票量？"
+    query = "怎么购买购买软证书？"
     results = rds.similarity_search_with_score(query)
     print(results)
     print(get_citations(results))

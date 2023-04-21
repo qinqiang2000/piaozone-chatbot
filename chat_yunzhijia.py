@@ -1,6 +1,4 @@
 import logging
-import threading
-import time
 
 import requests
 from fastapi import FastAPI, Request
@@ -55,7 +53,7 @@ def qa(question, openid):
 
     chat_history.append((result["question"], result["answer"]))
 
-    if result["answer"].find("未找到") >= 0 and result["answer"].rfind("联系售后") > 0:
+    if result["answer"].find("未找到") >= 0 or result["answer"].rfind("联系售后") > 0:
         response = result["answer"]
     else:
         response = result["answer"] + f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"

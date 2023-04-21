@@ -45,7 +45,7 @@ def get_chain(retriever):
             StreamingStdOutCallbackHandler()
         ]),
         verbose=True,
-        max_tokens=300,
+        max_tokens=230,
         temperature=0
     )
 

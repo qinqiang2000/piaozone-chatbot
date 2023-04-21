@@ -60,13 +60,20 @@ def qa(question, openid):
     else:
         response = result["answer"] + f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"
 
-    response = {
-        "content": response,
-        "notifyParams": [{"type": "openIds", "values": [openid]}]
+    data = {
+      "content": response,
+      "notifyParams": [
+            {
+                "type": "openIds",
+                "values": [
+                    openid
+                ]
+            }
+        ]
     }
-    print("\n", response)
+    print(f"openid={openid}, {data}")
 
-    requests.post(url, json=response)
+    requests.post(url, json=data)
 
 
 @app.post("/chat")

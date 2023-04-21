@@ -54,10 +54,10 @@ def qa(question, openid):
     result = chatbot({"question": question, "chat_history": chat_history})
 
     chat_history.append((result["question"], result["answer"]))
-    print((result["question"], result["answer"]))
 
-    # data = {"content": result["answer"]}
-    requests.post(url, json={"content": result["answer"]})
+    response = result["answer"] + f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"
+    print(response)
+    requests.post(url, json={"content": response})
 
 
 @app.post("/chat")
@@ -77,4 +77,5 @@ async def chat(msg: RobotMsg, task: BackgroundTasks):
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=80)

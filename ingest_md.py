@@ -1,5 +1,7 @@
 import os
 import pickle
+import time
+
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores.faiss import FAISS
@@ -8,6 +10,8 @@ from config import OPENAI_API_KEY, FAISS_DB_PATH
 
 # set your openAI api key as an environment variable
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
+
+embeddings = OpenAIEmbeddings()
 
 
 # 遍历文件夹下所有指定类型文件
@@ -31,8 +35,8 @@ def restore_url(path):
     return title, "https://www.yuque.com/%s/%s/%s" % (namespace, repo_id, slug)
 
 
-def prepare_dir_dataset(base_dir):
-    docs = []
+def prepare_dir_dataset(base_dir, db=None):
+    total = 0
     for i in findAllFile(base_dir, file_type='md'):
         loader = UnstructuredMarkdownLoader(i)
 
@@ -41,31 +45,63 @@ def prepare_dir_dataset(base_dir):
         for doc in raw_documents:
             doc.metadata['title'], doc.metadata['url'] = restore_url(i)
 
-        docs = docs + raw_documents
+        text_splitter = RecursiveCharacterTextSplitter(
+            chunk_size=300,
+            chunk_overlap=50,
+        )
 
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=300,
-        chunk_overlap=50,
-    )
+        documents = text_splitter.split_documents(raw_documents)
 
-    documents = text_splitter.split_documents(docs)
+        if db is None:
+            # create and load faiss with documents
+            db = FAISS.from_documents(documents, embedding=embeddings)
+        else:
+            db.add_documents(documents)
 
-    # create and load redis with documents
-    db = FAISS.from_documents(
-        documents,
-        embedding=OpenAIEmbeddings(),
-        # index_name=INDEX_NAME,
-        # redis_url=REDIS_URL
-    )
+        total += 1
+        print(f"Processed[{total}]: {i}")
 
     # Save vectorstore
-    db.save_local(FAISS_DB_PATH)
+    if db is not None:
+        db.save_local(FAISS_DB_PATH)
+        print("Saved vectors to %s" % FAISS_DB_PATH)
 
-def db_test():
-    query = "如何配置发票红冲的预警？"
-    # results = rds.similarity_search(query)
-    # print(results[0].page_content)
+# 导入语雀导出的md文件到vector db，针对知识库piaozone/implement
+def ingest_yq_piaozone_implement():
+    path = '/Users/qinqiang02/Desktop/fpy知识库/piaozone%2Fimplement_'
+    # 手工切分文件夹，避免一次性处理太多文件，导致openai api超限
+    for i in range(11):
+        doc_path = path + f"{i + 1}"
+
+        print("Processing path: %s" % doc_path)
+        try:
+            rds = FAISS.load_local(FAISS_DB_PATH, embeddings)
+            print("Using existing db: %s" % FAISS_DB_PATH)
+            prepare_dir_dataset(doc_path, rds)
+        except Exception as e:
+            print("No db found, create one")
+            prepare_dir_dataset(doc_path)
+
+        print("Processed path: %s" % doc_path)
+
+        time.sleep(60)
+
+
+# 导入语雀导出的md文件到vector db，针对数据量不大的知识库
+def ingest_yq_other():
+    doc_path = '/Users/qinqiang02/workspace/ml/redis-langchain-chatbot/fpy/data_md'
+
+    print("Processing path: %s" % doc_path)
+    try:
+        rds = FAISS.load_local(FAISS_DB_PATH, embeddings)
+        print("Using existing db: %s" % FAISS_DB_PATH)
+        prepare_dir_dataset(doc_path, rds)
+    except Exception as e:
+        print("No db found, create one")
+        prepare_dir_dataset(doc_path)
+
+    print("Processed path: %s" % doc_path)
 
 
 if __name__ == "__main__":
-    prepare_dir_dataset('/Users/qinqiang02/workspace/ml/redis-langchain-chatbot/fpy/data_md')
+    ingest_yq_piaozone_implement()

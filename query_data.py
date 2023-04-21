@@ -31,8 +31,8 @@ def get_citations(results):
         urls.append(r.metadata['url'])
         links[r.metadata['url']] = r.metadata['title']
 
-    citations = [f"[{links[u]}]: {u}" for u in feq_sort(urls)]
-    return citations
+    citations = [f"[{links[u]}：{u}]" for u in feq_sort(urls)]
+    return ' '.join(citations)
 
 
 def get_chain(retriever):

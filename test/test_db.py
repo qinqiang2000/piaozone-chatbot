@@ -36,9 +36,11 @@ def db_test(rds):
 
 if __name__ == "__main__":
     embeddings = OpenAIEmbeddings()
-
-    rds = FAISS.load_local(
-        "../" + FAISS_DB_PATH,
-        embeddings
-    )
-    db_test(rds)
+    try:
+        rds = FAISS.load_local(
+            "../" + FAISS_DB_PATH,
+            embeddings
+        )
+        db_test(rds)
+    except Exception as e:
+        print("No db found, create one")

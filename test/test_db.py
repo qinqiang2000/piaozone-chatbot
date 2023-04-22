@@ -28,10 +28,10 @@ def get_citations(results):
 
 
 def db_test(rds):
-    query = "金蝶发票管理组件重置方法"
+    query = "发票云影像系统怎么对接EAS？"
     results = rds.similarity_search_with_score(query)
+    print([r[0].metadata['title'] for r in results])
     print(results)
-    print(get_citations(results))
 
 
 if __name__ == "__main__":
@@ -44,4 +44,4 @@ if __name__ == "__main__":
         db_test(rds)
     except Exception as e:
         print(e)
-        print("No db found, create one")
+        print("No db found")

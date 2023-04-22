@@ -2,7 +2,7 @@
 from itertools import chain
 from collections import defaultdict
 
-from ingest_md import findAllFile
+from ingest_yq_md import findAllFile
 
 
 def split_docs():

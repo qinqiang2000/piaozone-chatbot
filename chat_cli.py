@@ -1,10 +1,8 @@
 from langchain import FAISS
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores.redis import Redis
 
-from prompt import fpy_condense_question_prompt, fpy_qa_prompt
 import os
-from config import OPENAI_API_KEY, REDIS_URL, INDEX_NAME, FAISS_DB_PATH
+from config import OPENAI_API_KEY, FAISS_DB_PATH
 from query_data import get_chain, get_citations
 
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY

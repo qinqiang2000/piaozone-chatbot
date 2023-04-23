@@ -1,6 +1,6 @@
 import os
 
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', "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")
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', "")
 INDEX_NAME = "fpy_operation_qa"
 REDIS_URL = "redis://localhost:6379"
 FAISS_DB_PATH = "db"

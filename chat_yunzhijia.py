@@ -88,7 +88,7 @@ async def chat(msg: RobotMsg, task: BackgroundTasks):
                 }
 
     msg.content.replace(filter_str, "")
-    
+
     print(msg)
 
     # 异步执行QA问问

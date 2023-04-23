@@ -87,7 +87,7 @@ async def chat(msg: RobotMsg, task: BackgroundTasks):
                                           "content": "请输入至少3个字符，以便我能理解您的问题。"}
                 }
 
-    msg.content.replace(filter_str, "")
+    msg.content = msg.content.replace(filter_str, "").lstrip(" ")
 
     print(msg)
 

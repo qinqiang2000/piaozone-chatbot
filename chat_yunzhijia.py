@@ -80,11 +80,16 @@ def qa(question, openid):
 
 @app.post("/chat")
 async def chat(msg: RobotMsg, task: BackgroundTasks):
-    print(msg)
+    filter_str = "@发票云GPT3.5"
+
     if len(msg.content) < 3:
         return {"success": True, "data": {"type": 2,
                                           "content": "请输入至少3个字符，以便我能理解您的问题。"}
                 }
+
+    msg.content.replace(filter_str, "")
+    
+    print(msg)
 
     # 异步执行QA问问
     task.add_task(qa, msg.content, msg.operatorOpenid)

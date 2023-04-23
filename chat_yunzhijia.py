@@ -53,10 +53,11 @@ def qa(question, openid):
 
     chat_history.append((result["question"], result["answer"]))
 
+    citations = f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"
     if result["answer"].find("未找到") >= 0 and result["answer"].rfind("售后") > 0:
-        response = result["answer"]
+        response = result["answer"] + citations
     else:
-        response = result["answer"] + f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"
+        response = result["answer"] + citations
 
     data = {
       "content": response,

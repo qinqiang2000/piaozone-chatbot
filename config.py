@@ -1,6 +1,9 @@
 import os
 
-OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', "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")
+OPENAI_API_KEY = os.environ.get('OPENAI_API_KEY', "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")
 INDEX_NAME = "fpy_operation_qa"
 REDIS_URL = "redis://localhost:6379"
 FAISS_DB_PATH = "db"
+
+YUNZHIJIA_SEND_URL = os.environ.get('YUNZHIJIA_SEND_URL', "https://www.yunzhijia.com/gateway/robot/webhook/send"
+                                                          "?yzjtype=0&yzjtoken=3fb3d03a665e4dfc955335d680410515")

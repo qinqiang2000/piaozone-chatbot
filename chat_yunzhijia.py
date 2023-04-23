@@ -9,7 +9,7 @@ from typing import Optional
 
 from starlette.background import BackgroundTasks
 
-from config import OPENAI_API_KEY, FAISS_DB_PATH
+from config import OPENAI_API_KEY, FAISS_DB_PATH, YUNZHIJIA_SEND_URL
 from pydantic import BaseModel
 from query_data import get_chain, get_citations
 
@@ -41,17 +41,20 @@ async def startup_event():
 
 
 # create a chat history buffer
-chat_history = []
+chat_history = {}
 
 
 def qa(question, openid):
     print(question, openid)
 
-    url = 'https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=3fb3d03a665e4dfc955335d680410515'
+    url = YUNZHIJIA_SEND_URL
 
-    result = chatbot({"question": question, "chat_history": chat_history})
+    if not openid in chat_history:
+        chat_history[openid] = []
 
-    chat_history.append((result["question"], result["answer"]))
+    result = chatbot({"question": question, "chat_history": chat_history[openid]})
+
+    chat_history[openid].append((result["question"], result["answer"]))
 
     citations = f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"
     if result["answer"].find("未找到") >= 0 and result["answer"].rfind("售后") > 0:
@@ -60,8 +63,8 @@ def qa(question, openid):
         response = result["answer"] + citations
 
     data = {
-      "content": response,
-      "notifyParams": [
+        "content": response,
+        "notifyParams": [
             {
                 "type": "openIds",
                 "values": [
@@ -80,8 +83,8 @@ async def chat(msg: RobotMsg, task: BackgroundTasks):
     print(msg)
     if len(msg.content) < 3:
         return {"success": True, "data": {"type": 2,
-                "content": "请输入至少3个字符，以便我能理解您的问题。"}
-        }
+                                          "content": "请输入至少3个字符，以便我能理解您的问题。"}
+                }
 
     # 异步执行QA问问
     task.add_task(qa, msg.content, msg.operatorOpenid)

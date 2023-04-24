@@ -68,7 +68,7 @@ def qa(question, openid, task: BackgroundTasks):
 
     citations = f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"
 
-    if result["answer"].lower().find("sorry") >= 0:
+    if result["answer"].lower().find("sorry") >= 0 and result["answer"].lower().find("chatgpt") >= 0:
         response = result["answer"]
         task.add_task(normal_chat, question, openid)
     else:

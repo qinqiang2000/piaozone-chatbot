@@ -28,7 +28,7 @@ def get_citations(results):
 
 
 def db_test(rds):
-    query = "发票云影像系统怎么对接EAS？"
+    query = "影像退扫怎么操作？"
     results = rds.similarity_search_with_score(query)
     print([r[0].metadata['title'] for r in results])
     print(results)

@@ -44,9 +44,7 @@ async def startup_event():
 chat_history = {}
 
 
-def qa(question, openid):
-    print(question, openid)
-
+def qa(question, openid, task: BackgroundTasks):
     url = YUNZHIJIA_SEND_URL
 
     if not openid in chat_history:
@@ -54,13 +52,13 @@ def qa(question, openid):
 
     result = chatbot({"question": question, "chat_history": chat_history[openid]})
 
-    chat_history[openid].append((result["question"], result["answer"]))
-
     citations = f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"
-    if result["answer"].find("未找到") >= 0 and result["answer"].rfind("售后") > 0:
-        response = result["answer"] + citations
+
+    if result["answer"].lower().find("sorry") >= 0:
+        response = result["answer"]
     else:
         response = result["answer"] + citations
+        chat_history[openid].append((result["question"], result["answer"]))
 
     data = {
         "content": response,
@@ -73,7 +71,7 @@ def qa(question, openid):
             }
         ]
     }
-    print(f"openid={openid}, {data}")
+    logging.info(f"openid={openid}, {data}")
 
     requests.post(url, json=data)
 
@@ -89,19 +87,24 @@ async def chat(msg: RobotMsg, task: BackgroundTasks):
 
     msg.content = msg.content.replace(filter_str, "").lstrip(" ")
 
-    print(msg)
+    logging.info(msg)
 
     # 异步执行QA问问
-    task.add_task(qa, msg.content, msg.operatorOpenid)
+    task.add_task(qa, msg.content, msg.operatorOpenid, task)
 
     return {
         "success": True,
-        "data": {
-            "type": 2,
-            "content": "请稍等，正在生成答案(云之家限制，我需生成全部答案后才返回)..."
-        }
+        "data": {"type": 2, "content": "请稍等，正在生成答案(云之家限制，我需生成全部答案后才返回)..."}
     }
 
+
+@app.post("/chat_test")
+async def chat_test(msg: RobotMsg, task: BackgroundTasks):
+    # await chat(msg, task)
+    return {
+        "success": True,
+        "data": {"type": 2, "content": "请稍等，正在生成答案(云之家限制，我需生成全部答案后才返回)..."}
+    }
 
 if __name__ == "__main__":
     import uvicorn

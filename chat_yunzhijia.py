@@ -85,7 +85,7 @@ def qa(question, openid, task: BackgroundTasks):
 
 @app.post("/chat")
 async def fpy_chat(msg: RobotMsg, task: BackgroundTasks):
-    filter_str = "@发票云GPT3.5"
+    filter_str = "@发票云知识库"
 
     if len(msg.content) < 3:
         return {"success": True, "data": {"type": 2,

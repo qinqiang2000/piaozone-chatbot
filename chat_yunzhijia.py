@@ -100,11 +100,7 @@ async def chat(msg: RobotMsg, task: BackgroundTasks):
 
 @app.post("/chat_test")
 async def chat_test(msg: RobotMsg, task: BackgroundTasks):
-    # await chat(msg, task)
-    return {
-        "success": True,
-        "data": {"type": 2, "content": "请稍等，正在生成答案(云之家限制，我需生成全部答案后才返回)..."}
-    }
+    return chat(msg, task)
 
 if __name__ == "__main__":
     import uvicorn

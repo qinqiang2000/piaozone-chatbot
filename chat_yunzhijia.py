@@ -9,9 +9,9 @@ from typing import Optional
 
 from starlette.background import BackgroundTasks
 
-from config import OPENAI_API_KEY, FAISS_DB_PATH, YUNZHIJIA_SEND_URL
+from config import OPENAI_API_KEY, FAISS_DB_PATH, YUNZHIJIA_SEND_URL, FPY_KEYWORDS
 from pydantic import BaseModel
-from query_data import get_chain, get_citations
+from query_data import get_chain, get_citations, get_chat_model
 
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 
@@ -44,6 +44,20 @@ async def startup_event():
 chat_history = {}
 
 
+def fpy_question(question):
+    return any(keyword in question.upper() for keyword in FPY_KEYWORDS)
+
+
+def normal_chat(question, openid):
+    chain = get_chat_model(openid)
+    output = chain.predict(human_input=question)
+    logging.info(output)
+
+    data = {"content": output,
+            "notifyParams": [{"type": "openIds", "values": [openid]}]}
+    requests.post(YUNZHIJIA_SEND_URL, json=data)
+
+
 def qa(question, openid, task: BackgroundTasks):
     url = YUNZHIJIA_SEND_URL
 
@@ -56,28 +70,21 @@ def qa(question, openid, task: BackgroundTasks):
 
     if result["answer"].lower().find("sorry") >= 0:
         response = result["answer"]
+        task.add_task(normal_chat, question, openid)
     else:
         response = result["answer"] + citations
         chat_history[openid].append((result["question"], result["answer"]))
 
-    data = {
-        "content": response,
-        "notifyParams": [
-            {
-                "type": "openIds",
-                "values": [
-                    openid
-                ]
-            }
-        ]
-    }
-    logging.info(f"openid={openid}, {data}")
+    data = {"content": response,
+            "notifyParams": [{"type": "openIds", "values": [openid]}]}
+
+    logging.info(f"\n{data}")
 
     requests.post(url, json=data)
 
 
 @app.post("/chat")
-async def chat(msg: RobotMsg, task: BackgroundTasks):
+async def fpy_chat(msg: RobotMsg, task: BackgroundTasks):
     filter_str = "@发票云GPT3.5"
 
     if len(msg.content) < 3:
@@ -89,7 +96,7 @@ async def chat(msg: RobotMsg, task: BackgroundTasks):
 
     logging.info(msg)
 
-    # 异步执行QA问问
+    # 异步执行QA
     task.add_task(qa, msg.content, msg.operatorOpenid, task)
 
     return {
@@ -100,7 +107,17 @@ async def chat(msg: RobotMsg, task: BackgroundTasks):
 
 @app.post("/chat_test")
 async def chat_test(msg: RobotMsg, task: BackgroundTasks):
-    return chat(msg, task)
+    return await fpy_chat(msg, task)
+
+
+@app.post("/chatgpt")
+async def chatgpt(msg: RobotMsg, task: BackgroundTasks):
+    task.add_task(normal_chat, msg.content, msg.operatorOpenid)
+
+    return {
+        "success": True,
+        "data": {"type": 2, "content": "请稍等，正在生成答案(云之家限制，我需生成全部答案后才返回)..."}
+    }
 
 if __name__ == "__main__":
     import uvicorn

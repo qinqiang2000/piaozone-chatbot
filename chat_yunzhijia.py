@@ -107,6 +107,7 @@ async def fpy_chat(msg: RobotMsg, task: BackgroundTasks):
 
 @app.post("/chat_test")
 async def chat_test(msg: RobotMsg, task: BackgroundTasks):
+    YUNZHIJIA_SEND_URL = "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=33604eb24ce34ee8a1a8577b4d992ac7"
     return await fpy_chat(msg, task)
 
 

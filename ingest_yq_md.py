@@ -8,7 +8,7 @@ import os
 import time
 
 from langchain.embeddings import OpenAIEmbeddings
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter, MarkdownTextSplitter
 from langchain.vectorstores.faiss import FAISS
 from langchain.document_loaders import UnstructuredMarkdownLoader
 from config import OPENAI_API_KEY, FAISS_DB_PATH
@@ -50,9 +50,9 @@ def prepare_dir_dataset(base_dir, restore_fn, db=None):
         for doc in raw_documents:
             doc.metadata['title'], doc.metadata['url'] = restore_fn(i)
 
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=300,
-            chunk_overlap=50,
+        text_splitter = MarkdownTextSplitter(
+            chunk_size=1000,
+            chunk_overlap=100,
         )
 
         documents = text_splitter.split_documents(raw_documents)
@@ -93,28 +93,3 @@ def ingest_yq_md(doc_path):
 if __name__ == "__main__":
     path = '/Users/qinqiang02/workspace/python/ExportMD-rectify-pics/yuque'
     ingest_yq_md(path)
-
-
-
-# 将语雀导出的md文件注入到vector db，暂时只针对知识库piaozone/implement
-# todo: 将硬代码优化，尽量参数化
-# def ingest_yq_piaozone_implement():
-#     path = '/Users/qinqiang02/Desktop/fpy知识库/piaozone%2Fimplement_'
-#     # 手工切分文件夹，避免一次性处理太多文件，导致openai api超限
-#     for i in range(11):
-#         doc_path = path + f"{i + 1}"
-#
-#         print("Processing path: %s" % doc_path)
-#         try:
-#             rds = FAISS.load_local(FAISS_DB_PATH, embeddings)
-#             print("Using existing db: %s" % FAISS_DB_PATH)
-#             prepare_dir_dataset(doc_path, rds)
-#         except Exception as e:
-#             print("No db found, create one")
-#             prepare_dir_dataset(doc_path)
-#
-#         print("Processed path: %s" % doc_path)
-#
-#         # 避免openai限流
-#         time.sleep(60)
-

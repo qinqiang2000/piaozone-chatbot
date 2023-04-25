@@ -30,8 +30,10 @@ if __name__ == "__main__":
         result = chatbot(
             {"question": question, "chat_history": chat_history}
         )
-        # if result["answer"].find("搞不定") != -1:
 
         print("\n更多详情，请参考：", get_citations(result["source_documents"]), "\n")
-        chat_history.append((result["question"], result["answer"]))
+
+        if result["answer"].find("Sorry") < 0:
+            chat_history.append((result["question"], result["answer"]))
+
         question = input()

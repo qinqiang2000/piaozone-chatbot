@@ -10,7 +10,7 @@ from typing import Optional
 
 from starlette.background import BackgroundTasks
 
-from config import OPENAI_API_KEY, FAISS_DB_PATH, YUNZHIJIA_SEND_URL, FPY_KEYWORDS
+from config import OPENAI_API_KEY, FAISS_DB_PATH, YUNZHIJIA_NOTIFY_URL, FPY_KEYWORDS
 from pydantic import BaseModel
 from query_data import get_chain, get_citations, get_chat_model
 from langchain.chains import RetrievalQA
@@ -38,10 +38,10 @@ async def startup_event():
     logging.info("loading vectorstore")
     # Load from existing index
     rds = FAISS.load_local(FAISS_DB_PATH, OpenAIEmbeddings())
-    global chatbot, retrieverQA
     retriever = rds.as_retriever()
-    chatbot = get_chain(retriever)
 
+    global chatbot, retrieverQA
+    chatbot = get_chain(retriever)
     retrieverQA = RetrievalQA.from_chain_type(llm=ChatOpenAI(temperature=0), chain_type="stuff", retriever=retriever,
                                               return_source_documents=True)
 
@@ -61,22 +61,24 @@ def normal_chat(question, openid):
 
     data = {"content": output,
             "notifyParams": [{"type": "openIds", "values": [openid]}]}
-    requests.post(YUNZHIJIA_SEND_URL, json=data)
+    requests.post(YUNZHIJIA_NOTIFY_URL, json=data)
 
 
-# 根据文档进行聊天式回答；todo: 目前效果还不如RetrievalQA 待优化
+# 根据文档进行聊天式回答
 def chat_doc(question, openid, task: BackgroundTasks):
-    url = YUNZHIJIA_SEND_URL
+    url = YUNZHIJIA_NOTIFY_URL
 
     if not openid in chat_history:
         chat_history[openid] = []
 
     result = chatbot({"question": question, "chat_history": chat_history[openid]})
 
+    response = result["answer"]
     citations = f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"
 
-    if result["answer"].lower().find("sorry") >= 0 and result["answer"].lower().find("chatgpt") >= 0:
-        response = result["answer"]
+    # 如果是不能回答的任务，则不加入chat_history，转而直接问chatgpt
+    KEYWORDS = ["sorry", "chatgpt", "抱歉"]
+    if any(keyword in result["answer"].lower() for keyword in KEYWORDS):
         task.add_task(normal_chat, question, openid)
     else:
         response = result["answer"] + citations
@@ -85,20 +87,6 @@ def chat_doc(question, openid, task: BackgroundTasks):
     data = {"content": response,
             "notifyParams": [{"type": "openIds", "values": [openid]}]}
 
-    logging.info(f"\n{data}")
-
-    requests.post(url, json=data)
-
-
-def retrieval_qa(question, openid, task: BackgroundTasks):
-    url = YUNZHIJIA_SEND_URL
-
-    ret = retrieverQA({"query": question})
-
-    citations = f"\n更多详情，请参考：{get_citations(ret['source_documents'])}\n"
-
-    data = {"content": ret['result'] + citations,
-            "notifyParams": [{"type": "openIds", "values": [openid]}]}
     logging.info(f"\n{data}")
 
     requests.post(url, json=data)
@@ -118,7 +106,7 @@ async def fpy_chat(msg: RobotMsg, task: BackgroundTasks):
     logging.info(msg)
 
     # 异步执行QA
-    task.add_task(retrieval_qa, msg.content, msg.operatorOpenid, task)
+    task.add_task(chat_doc, msg.content, msg.operatorOpenid, task)
 
     return {
         "success": True,

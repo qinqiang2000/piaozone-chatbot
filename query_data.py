@@ -38,6 +38,15 @@ def get_citations(results):
 
 
 def get_chain(retriever):
+    chat = ChatOpenAI(streaming=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
+                      verbose=False, temperature=0)
+    qa = ConversationalRetrievalChain.from_llm(chat, retriever, condense_question_prompt=fpy_condense_question_prompt,
+                                               return_source_documents=True)
+    return qa
+
+
+# 效果不好，待找到原因
+def get_chain0(retriever):
     # define two LLM models from OpenAI
     llm = ChatOpenAI(temperature=0)
 
@@ -47,7 +56,6 @@ def get_chain(retriever):
             StreamingStdOutCallbackHandler()
         ]),
         verbose=True,
-        max_tokens=230,
         temperature=0
     )
 
@@ -61,7 +69,8 @@ def get_chain(retriever):
     doc_chain = load_qa_chain(
         llm=streaming_llm,
         chain_type="stuff",
-        prompt=fpy_qa_prompt
+        # prompt=fpy_qa_prompt
+        prompt=None
     )
 
     return ConversationalRetrievalChain(

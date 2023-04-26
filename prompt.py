@@ -1,13 +1,13 @@
 from langchain.prompts.prompt import PromptTemplate
 
-condense_template = """给出以下聊天记录和一个后续问题，重新表述后续输入问题，使其成为一个独立的问题；或结束对话，如果它看起来已经完成了.
+condense_template = """给出以下聊天记录和一个后续问题，重新表述后续输入问题，使其成为一个中文的独立问题；或结束对话，如果它看起来已经完成了.
 聊天记录:\"""
 {chat_history}
 \"""
 后续输入: \"""
 {question}
 \"""
-独立的问题:"""
+中文的独立问题:"""
 
 fpy_condense_question_prompt = PromptTemplate.from_template(condense_template)
 

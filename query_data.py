@@ -39,7 +39,7 @@ def get_citations(results):
 
 def get_chain(retriever):
     chat = ChatOpenAI(streaming=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
-                      verbose=False, temperature=0)
+                      verbose=True, temperature=0)
     qa = ConversationalRetrievalChain.from_llm(chat, retriever, condense_question_prompt=fpy_condense_question_prompt,
                                                return_source_documents=True)
     return qa

@@ -86,7 +86,7 @@ def chat_doc(question, openid, task: BackgroundTasks):
 
     logging.info(f"\n{data}")
 
-    # requests.post(url, json=data)
+    requests.post(url, json=data)
 
 
 @app.post("/chat")

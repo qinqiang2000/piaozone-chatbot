@@ -14,7 +14,6 @@ from config import OPENAI_API_KEY, FAISS_DB_PATH, YUNZHIJIA_NOTIFY_URL, FPY_KEYW
 from pydantic import BaseModel
 from query_data import get_chain, get_citations, get_chat_model
 from langchain.chains import RetrievalQA
-from langchain.llms import OpenAI
 
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 
@@ -42,8 +41,6 @@ async def startup_event():
 
     global chatbot, retrieverQA
     chatbot = get_chain(retriever)
-    retrieverQA = RetrievalQA.from_chain_type(llm=ChatOpenAI(temperature=0), chain_type="stuff", retriever=retriever,
-                                              return_source_documents=True)
 
 
 # create a chat history buffer

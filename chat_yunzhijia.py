@@ -3,7 +3,6 @@ import logging
 import requests
 from fastapi import FastAPI, Request
 from langchain import FAISS
-from langchain.chat_models import ChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 import os
 from typing import Optional
@@ -13,7 +12,6 @@ from starlette.background import BackgroundTasks
 from config import OPENAI_API_KEY, FAISS_DB_PATH, YUNZHIJIA_NOTIFY_URL, FPY_KEYWORDS
 from pydantic import BaseModel
 from query_data import get_chain, get_citations, get_chat_model
-from langchain.chains import RetrievalQA
 
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 

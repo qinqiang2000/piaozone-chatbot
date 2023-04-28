@@ -56,14 +56,14 @@ def detect_question(q):
     ]
     return chat(messages).content
 
-def fix_faq_docs():
+
+# 用gpt完善faq文档的问题一列，
+def refine_faq_docs():
     # 读取数据文件
     df = pd.read_excel('/Users/qinqiang02/Desktop/fpy知识库/GPT训练知识-知识库导出.xlsx')
 
     questions_col = df['问题']
-
     new_col = []
-    # 逐行打印
     for question in questions_col:
         new_q = detect_question(question)
         new_col.append(new_q)
@@ -73,7 +73,8 @@ def fix_faq_docs():
 
     # 保存到Excel文件
     df.to_excel('/Users/qinqiang02/Desktop/fpy知识库/new_filename.xlsx', index=False)
-fix_faq_docs()
+
+# refine_faq_docs()
 
 # 处理语雀导出的文档列表
 def load_json():

@@ -17,6 +17,7 @@ import os
 from config import OPENAI_API_KEY, AZURE_BASE_URL, AZURE_DEPLOYMENT_NAME, AZURE_API_KEY, AZURE_EBD_DEPLOYMENT_NAME
 
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
+session = {}
 
 
 def feq_sort(*lists):
@@ -28,13 +29,15 @@ def feq_sort(*lists):
 
 
 def get_citations(results):
-    links = {}
-    urls = []
+    citations = []
     for r in results:
-        urls.append(r.metadata['url'])
-        links[r.metadata['url']] = r.metadata['title']
+        # 如果有行数，把行数加到标题后面；因这里的行数是从0开始的，还算上标题行，所以要加2
+        if 'row' in r.metadata:
+            r.metadata['title'] = r.metadata['title'] + f"(第{r.metadata['row']+2}行)"
 
-    citations = [f"[{links[u]}：{u}]" for u in feq_sort(urls)]
+        citations.append(f"[{r.metadata['title']}：{r.metadata['url']}]")
+
+    # citations = [f"[{links[u]}：{u}]" for u in urls]
     return ' '.join(citations)
 
 
@@ -106,16 +109,24 @@ def get_chain0(retriever):
 
 
 # 纯粹聊天
-session = {}
-
-
-def get_chat_model(sid):
+def get_chat_model(sid, api_type=None):
     global session
 
     if sid in session:
         return session[sid]
 
-    llm = ChatOpenAI(temperature=0)
+    if api_type == 'azure':
+        llm = AzureChatOpenAI(
+            openai_api_base=AZURE_BASE_URL,
+            openai_api_version="2023-03-15-preview",
+            deployment_name=AZURE_DEPLOYMENT_NAME,
+            openai_api_key=AZURE_API_KEY,
+            openai_api_type="azure",
+            streaming=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
+            verbose=True, temperature=0
+        )
+    else:
+        llm = ChatOpenAI(temperature=0)
 
     session[sid] = LLMChain(
         llm=llm,

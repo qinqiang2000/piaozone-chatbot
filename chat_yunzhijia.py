@@ -3,20 +3,17 @@ import logging
 import requests
 from fastapi import FastAPI, Request
 from langchain import FAISS
-from langchain.embeddings import OpenAIEmbeddings
 import os
 from typing import Optional
-
 from starlette.background import BackgroundTasks
-
-from config import OPENAI_API_KEY, YUNZHIJIA_NOTIFY_URL, FPY_KEYWORDS
+from config import OPENAI_API_KEY, YUNZHIJIA_NOTIFY_URL
 from pydantic import BaseModel
-from query_data import get_chain, get_citations, get_chat_model
+from query_data import get_chain, get_citations, get_chat_model, get_embeddings
 
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
-FAISS_DB_PATH = 'db'
 
 app = FastAPI()
+FAISS_DB_PATH = 'db'
 chatbot = None
 
 
@@ -35,11 +32,11 @@ class RobotMsg(BaseModel):
 async def startup_event():
     logging.info("loading vectorstore")
     # Load from existing index
-    rds = FAISS.load_local(FAISS_DB_PATH, OpenAIEmbeddings())
+    rds = FAISS.load_local(FAISS_DB_PATH, get_embeddings(api_type='azure'))
     retriever = rds.as_retriever()
 
     global chatbot
-    chatbot = get_chain(retriever)
+    chatbot = get_chain(retriever, api_type='azure')
 
 
 # create a chat history buffer
@@ -48,7 +45,7 @@ chat_history = {}
 
 # 直接和chatgpt聊天
 def direct_chatgpt(question, openid):
-    chain = get_chat_model(openid)
+    chain = get_chat_model(openid, api_type='azure')
     output = chain.predict(human_input=question)
     logging.info(output)
 
@@ -95,7 +92,6 @@ async def fpy_chat(msg: RobotMsg, task: BackgroundTasks):
                 }
 
     msg.content = msg.content.replace(filter_str, "").lstrip(" ")
-
     logging.info(msg)
 
     # 异步执行QA

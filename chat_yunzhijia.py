@@ -9,11 +9,12 @@ from typing import Optional
 
 from starlette.background import BackgroundTasks
 
-from config import OPENAI_API_KEY, FAISS_DB_PATH, YUNZHIJIA_NOTIFY_URL, FPY_KEYWORDS
+from config import OPENAI_API_KEY, YUNZHIJIA_NOTIFY_URL, FPY_KEYWORDS
 from pydantic import BaseModel
 from query_data import get_chain, get_citations, get_chat_model
 
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
+FAISS_DB_PATH = 'db'
 
 app = FastAPI()
 chatbot = None
@@ -37,7 +38,7 @@ async def startup_event():
     rds = FAISS.load_local(FAISS_DB_PATH, OpenAIEmbeddings())
     retriever = rds.as_retriever()
 
-    global chatbot, retrieverQA
+    global chatbot
     chatbot = get_chain(retriever)
 
 
@@ -45,11 +46,8 @@ async def startup_event():
 chat_history = {}
 
 
-def fpy_question(question):
-    return any(keyword in question.upper() for keyword in FPY_KEYWORDS)
-
-
-def normal_chat(question, openid):
+# 直接和chatgpt聊天
+def direct_chatgpt(question, openid):
     chain = get_chat_model(openid)
     output = chain.predict(human_input=question)
     logging.info(output)
@@ -74,7 +72,7 @@ def chat_doc(question, openid, task: BackgroundTasks):
     # 如果是不能回答的任务，则不加入chat_history，转而直接问chatgpt
     KEYWORDS = ["sorry", "chatgpt", "抱歉"]
     if any(keyword in result["answer"].lower() for keyword in KEYWORDS):
-        task.add_task(normal_chat, question, openid)
+        task.add_task(direct_chatgpt, question, openid)
     else:
         response = result["answer"] + citations
         chat_history[openid].append((result["question"], result["answer"]))
@@ -117,7 +115,7 @@ async def chat_test(msg: RobotMsg, task: BackgroundTasks):
 
 @app.post("/chatgpt")
 async def chatgpt(msg: RobotMsg, task: BackgroundTasks):
-    task.add_task(normal_chat, msg.content, msg.operatorOpenid)
+    task.add_task(direct_chatgpt, msg.content, msg.operatorOpenid)
 
     return {
         "success": True,

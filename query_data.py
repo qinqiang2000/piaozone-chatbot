@@ -8,12 +8,13 @@ from langchain.chains import (
     LLMChain
 )
 from langchain.chains.question_answering import load_qa_chain
-from langchain.chat_models import ChatOpenAI
+from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
+from langchain.embeddings import OpenAIEmbeddings
 from langchain.memory import ConversationBufferWindowMemory
 
 from prompt import fpy_condense_question_prompt, fpy_qa_prompt, normal_prompt
 import os
-from config import OPENAI_API_KEY
+from config import OPENAI_API_KEY, AZURE_BASE_URL, AZURE_DEPLOYMENT_NAME, AZURE_API_KEY, AZURE_EBD_DEPLOYMENT_NAME
 
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 
@@ -37,10 +38,33 @@ def get_citations(results):
     return ' '.join(citations)
 
 
-def get_chain(retriever):
-    chat = ChatOpenAI(streaming=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
-                      verbose=True, temperature=0)
-    qa = ConversationalRetrievalChain.from_llm(chat, retriever, condense_question_prompt=fpy_condense_question_prompt,
+def get_embeddings(api_type=None):
+    if api_type == 'azure':
+        os.environ["OPENAI_API_TYPE"] = "azure"
+        os.environ["OPENAI_API_BASE"] = AZURE_BASE_URL
+        os.environ["OPENAI_API_KEY"] = AZURE_API_KEY
+
+        return OpenAIEmbeddings(deployment=AZURE_EBD_DEPLOYMENT_NAME)
+
+    return OpenAIEmbeddings()
+
+
+def get_chain(retriever, api_type=None):
+    if api_type == 'azure':
+        model = AzureChatOpenAI(
+            openai_api_base=AZURE_BASE_URL,
+            openai_api_version="2023-03-15-preview",
+            deployment_name=AZURE_DEPLOYMENT_NAME,
+            openai_api_key=AZURE_API_KEY,
+            openai_api_type="azure",
+            streaming=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
+            verbose=True, temperature=0
+        )
+    else:
+        model = ChatOpenAI(streaming=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
+                           verbose=True, temperature=0)
+
+    qa = ConversationalRetrievalChain.from_llm(model, retriever, condense_question_prompt=fpy_condense_question_prompt,
                                                return_source_documents=True)
     return qa
 
@@ -83,6 +107,8 @@ def get_chain0(retriever):
 
 # 纯粹聊天
 session = {}
+
+
 def get_chat_model(sid):
     global session
 

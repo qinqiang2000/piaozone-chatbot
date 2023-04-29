@@ -1,7 +1,7 @@
 from langchain import FAISS
 from langchain.callbacks import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
-from langchain.chains import ConversationalRetrievalChain
+from langchain.chains import ConversationalRetrievalChain, RetrievalQA
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.chat_models import ChatOpenAI
 import os
@@ -19,10 +19,6 @@ if __name__ == "__main__":
     rds = FAISS.load_local(FAISS_DB_PATH, get_embeddings(api_type='azure'))
     retriever = rds.as_retriever()
 
-    # chat = ChatOpenAI(streaming=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
-    #                   verbose=True, temperature=0)
-    # qa = ConversationalRetrievalChain.from_llm(chat, retriever, condense_question_prompt=fpy_condense_question_prompt,
-    #                                            return_source_documents=True)
     qa = get_chain(retriever, api_type='azure')
 
     # create a chat history buffer
@@ -33,11 +29,11 @@ if __name__ == "__main__":
 
     # keep the bot running in a loop to simulate a conversation
     while True:
-        result = qa({"question": question, "chat_history": chat_history})
+        result = qa({"question": question})
 
         print("\n更多详情，请参考：", get_citations(result["source_documents"]), "\n")
 
-        if result["answer"].find("Sorry") < 0:
-            chat_history.append((result["question"], result["answer"]))
+        # if result["answer"].find("Sorry") < 0:
+        #     chat_history.append((result["question"], result["answer"]))
 
         question = input()

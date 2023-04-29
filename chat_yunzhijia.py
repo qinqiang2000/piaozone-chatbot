@@ -62,17 +62,19 @@ def chat_doc(question, openid, task: BackgroundTasks):
         chat_history[openid] = []
 
     result = chatbot({"question": question, "chat_history": chat_history[openid]})
-
     response = result["answer"]
+
     citations = f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"
 
     # 如果是不能回答的任务，则不加入chat_history，转而直接问chatgpt
     KEYWORDS = ["sorry", "chatgpt", "抱歉"]
     if any(keyword in result["answer"].lower() for keyword in KEYWORDS):
         task.add_task(direct_chatgpt, question, openid)
+        pass
     else:
         response = result["answer"] + citations
-        chat_history[openid].append((result["question"], result["answer"]))
+        # 加上history有时候会出问题，暂时不加
+        # chat_history[openid].append((result["question"], result["answer"]))
 
     data = {"content": response,
             "notifyParams": [{"type": "openIds", "values": [openid]}]}

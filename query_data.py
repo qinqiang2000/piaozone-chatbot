@@ -5,7 +5,7 @@ from langchain.callbacks.base import CallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.chains import (
     ConversationalRetrievalChain,
-    LLMChain
+    LLMChain, RetrievalQA
 )
 from langchain.chains.question_answering import load_qa_chain
 from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
@@ -31,11 +31,13 @@ def feq_sort(*lists):
 def get_citations(results):
     citations = []
     for r in results:
+        title = r.metadata['title']
+
         # 如果有行数，把行数加到标题后面；因这里的行数是从0开始的，还算上标题行，所以要加2
         if 'row' in r.metadata:
-            r.metadata['title'] = r.metadata['title'] + f"(第{r.metadata['row']+2}行)"
+            title = r.metadata['title'] + f"(第{r.metadata['row']+2}行)"
 
-        citations.append(f"[{r.metadata['title']}：{r.metadata['url']}]")
+        citations.append(f"[{title}：{r.metadata['url']}]")
 
     # citations = [f"[{links[u]}：{u}]" for u in urls]
     return ' '.join(citations)
@@ -67,6 +69,9 @@ def get_chain(retriever, api_type=None):
         model = ChatOpenAI(streaming=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
                            verbose=True, temperature=0)
 
+    # qa = RetrievalQA.from_chain_type(llm=model, chain_type="stuff",
+    #                                  retriever=retriever, return_source_documents=True,
+    #                                  input_key="question", output_key="answer")
     qa = ConversationalRetrievalChain.from_llm(model, retriever, condense_question_prompt=fpy_condense_question_prompt,
                                                return_source_documents=True)
     return qa

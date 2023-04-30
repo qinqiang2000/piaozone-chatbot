@@ -1,6 +1,6 @@
 from langchain.prompts.prompt import PromptTemplate
 
-condense_template = """给出以下聊天记录和一个问题，重新表述该问题，使其成为一个的独立问题；如果上下文没有用，请返回原来的问题.
+condense_template = """给出以下聊天记录和一个问题，重新表述该问题，使其成为一个的独立问题；如果聊天记录没有用，请返回原来的问题.
 聊天记录:\"\"\"
 {chat_history}
 \"\"\"

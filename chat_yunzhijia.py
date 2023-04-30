@@ -73,8 +73,8 @@ def chat_doc(question, openid, task: BackgroundTasks):
         pass
     else:
         response = result["answer"] + citations
-        # 加上history有时候会出问题，暂时不加
-        # chat_history[openid].append((result["question"], result["answer"]))
+        # todo: 加上history有时候会出问题,待解决
+        chat_history[openid].append((result["question"], result["answer"]))
 
     data = {"content": response,
             "notifyParams": [{"type": "openIds", "values": [openid]}]}
@@ -88,13 +88,11 @@ def chat_doc(question, openid, task: BackgroundTasks):
 async def fpy_chat(msg: RobotMsg, task: BackgroundTasks):
     filter_str = "@发票云知识库"
 
-    if len(msg.content) < 3:
-        return {"success": True, "data": {"type": 2,
-                                          "content": "请输入至少3个字符，以便我能理解您的问题。"}
-                }
-
     msg.content = msg.content.replace(filter_str, "").lstrip(" ")
     logging.info(msg)
+
+    if len(msg.content) < 3:
+        return {"success": True, "data": {"type": 2, "content": "请输入至少3个字符，以便我能理解您的问题。"}}
 
     # 异步执行QA
     task.add_task(chat_doc, msg.content, msg.operatorOpenid, task)

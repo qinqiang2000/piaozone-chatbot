@@ -29,11 +29,14 @@ if __name__ == "__main__":
 
     # keep the bot running in a loop to simulate a conversation
     while True:
-        result = qa({"question": question})
+        result = qa({"question": question, "chat_history": chat_history})
 
         print("\n更多详情，请参考：", get_citations(result["source_documents"]), "\n")
 
-        # if result["answer"].find("Sorry") < 0:
-        #     chat_history.append((result["question"], result["answer"]))
+        KEYWORDS = ["sorry", "chatgpt", "抱歉"]
+        if any(keyword in result["answer"].lower() for keyword in KEYWORDS):
+            continue
+
+        chat_history.append((result["question"], result["answer"]))
 
         question = input()

@@ -136,7 +136,7 @@ def get_chat_model(sid, api_type=None):
     session[sid] = LLMChain(
         llm=llm,
         prompt=normal_prompt,
-        memory=ConversationBufferWindowMemory(k=2),
+        memory=ConversationBufferWindowMemory(k=5),
     )
 
     return session[sid]

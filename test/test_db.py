@@ -3,7 +3,7 @@ from itertools import chain
 from langchain.vectorstores import FAISS
 from langchain.embeddings import OpenAIEmbeddings
 import os
-from config import OPENAI_API_KEY, INDEX_NAME, REDIS_URL, FAISS_DB_PATH
+from settings import OPENAI_API_KEY, INDEX_NAME, REDIS_URL, FAISS_DB_PATH
 
 # set your openAI api key as an environment variable
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY

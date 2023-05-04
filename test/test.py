@@ -20,7 +20,7 @@ from langchain.schema import (
     SystemMessage
 )
 
-from config import OPENAI_API_KEY, AZURE_BASE_URL, AZURE_DEPLOYMENT_NAME, AZURE_API_KEY
+from settings import OPENAI_API_KEY, AZURE_BASE_URL, AZURE_DEPLOYMENT_NAME, AZURE_API_KEY
 
 # set your openAI api key as an environment variable
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY

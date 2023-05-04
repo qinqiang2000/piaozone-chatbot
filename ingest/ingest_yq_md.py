@@ -12,7 +12,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter, MarkdownText
 from langchain.vectorstores.faiss import FAISS
 from langchain.document_loaders import UnstructuredMarkdownLoader
 
-from config import OPENAI_API_KEY
+from settings import OPENAI_API_KEY
 
 FAISS_DB_PATH = "../db"
 

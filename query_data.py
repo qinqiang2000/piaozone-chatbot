@@ -1,7 +1,7 @@
 from collections import defaultdict
 from itertools import chain
 
-from langchain.callbacks.base import CallbackManager
+from langchain.callbacks.base import BaseCallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.chains import (
     ConversationalRetrievalChain,
@@ -12,11 +12,10 @@ from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.memory import ConversationBufferWindowMemory
 
-from prompt import fpy_condense_question_prompt, fpy_qa_prompt, normal_prompt
+from prompt import fpy_condense_question_prompt, normal_prompt
 import os
-from config import OPENAI_API_KEY, AZURE_BASE_URL, AZURE_DEPLOYMENT_NAME, AZURE_API_KEY, AZURE_EBD_DEPLOYMENT_NAME
+from settings import AZURE_BASE_URL, AZURE_DEPLOYMENT_NAME, AZURE_API_KEY, AZURE_EBD_DEPLOYMENT_NAME
 
-os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 session = {}
 
 
@@ -62,11 +61,11 @@ def get_chain(retriever, api_type=None):
             deployment_name=AZURE_DEPLOYMENT_NAME,
             openai_api_key=AZURE_API_KEY,
             openai_api_type="azure",
-            streaming=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
+            streaming=True, callback_manager=BaseCallbackManager([StreamingStdOutCallbackHandler()]),
             verbose=True, temperature=0
         )
     else:
-        model = ChatOpenAI(streaming=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
+        model = ChatOpenAI(streaming=True, callback_manager=BaseCallbackManager([StreamingStdOutCallbackHandler()]),
                            verbose=True, temperature=0)
 
     # qa = RetrievalQA.from_chain_type(llm=model, chain_type="stuff",

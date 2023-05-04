@@ -4,7 +4,7 @@ from langchain import OpenAI, ConversationChain, LLMChain, PromptTemplate
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferWindowMemory
 
-from config import OPENAI_API_KEY
+from settings import OPENAI_API_KEY
 
 os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 

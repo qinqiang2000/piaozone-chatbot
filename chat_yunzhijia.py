@@ -3,14 +3,12 @@ import logging
 import requests
 from fastapi import FastAPI, Request
 from langchain import FAISS
-import os
 from typing import Optional
 from starlette.background import BackgroundTasks
-from config import OPENAI_API_KEY, YUNZHIJIA_NOTIFY_URL
+from settings import YUNZHIJIA_NOTIFY_URL
 from pydantic import BaseModel
 from query_data import get_chain, get_citations, get_chat_model, get_embeddings
 
-os.environ['OPENAI_API_KEY'] = OPENAI_API_KEY
 
 app = FastAPI()
 FAISS_DB_PATH = 'db'
@@ -32,11 +30,11 @@ class RobotMsg(BaseModel):
 async def startup_event():
     logging.info("loading vectorstore")
     # Load from existing index
-    rds = FAISS.load_local(FAISS_DB_PATH, get_embeddings(api_type='azure'))
+    rds = FAISS.load_local(FAISS_DB_PATH, get_embeddings())
     retriever = rds.as_retriever()
 
     global chatbot
-    chatbot = get_chain(retriever, api_type='azure')
+    chatbot = get_chain(retriever)
 
 
 # create a chat history buffer
@@ -45,7 +43,7 @@ chat_history = {}
 
 # 直接和chatgpt聊天
 def direct_chatgpt(question, openid):
-    chain = get_chat_model(openid, api_type='azure')
+    chain = get_chat_model(openid)
     output = chain.predict(human_input=question)
     logging.info(output)
 
@@ -105,7 +103,6 @@ async def fpy_chat(msg: RobotMsg, task: BackgroundTasks):
 
 @app.post("/chat_test")
 async def chat_test(msg: RobotMsg, task: BackgroundTasks):
-    YUNZHIJIA_SEND_URL = "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken=33604eb24ce34ee8a1a8577b4d992ac7"
     return await fpy_chat(msg, task)
 
 

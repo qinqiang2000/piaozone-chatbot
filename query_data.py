@@ -68,11 +68,11 @@ def get_chain(retriever, api_type=None):
         model = ChatOpenAI(streaming=True, callback_manager=BaseCallbackManager([StreamingStdOutCallbackHandler()]),
                            verbose=True, temperature=0)
 
-    # qa = RetrievalQA.from_chain_type(llm=model, chain_type="stuff",
-    #                                  retriever=retriever, return_source_documents=True,
-    #                                  input_key="question", output_key="answer")
-    qa = ConversationalRetrievalChain.from_llm(model, retriever, condense_question_prompt=fpy_condense_question_prompt,
-                                               return_source_documents=True)
+    qa = RetrievalQA.from_chain_type(llm=model, chain_type="stuff",
+                                     retriever=retriever, return_source_documents=True,
+                                     input_key="question", output_key="answer")
+    # qa = ConversationalRetrievalChain.from_llm(model, retriever,
+    #                                            return_source_documents=True)
     return qa
 
 
@@ -83,7 +83,7 @@ def get_chain0(retriever):
 
     streaming_llm = ChatOpenAI(
         streaming=True,
-        callback_manager=CallbackManager([
+        callback_manager=BaseCallbackManager([
             StreamingStdOutCallbackHandler()
         ]),
         verbose=True,

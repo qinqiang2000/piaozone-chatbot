@@ -67,7 +67,7 @@ def chat_doc(question, openid, task: BackgroundTasks):
     # 如果是不能回答的任务，则不加入chat_history，转而直接问chatgpt
     KEYWORDS = ["sorry", "chatgpt", "抱歉"]
     if any(keyword in result["answer"].lower() for keyword in KEYWORDS):
-        task.add_task(direct_chatgpt, question, openid)
+        # task.add_task(direct_chatgpt, question, openid)
         pass
     else:
         response = result["answer"] + citations

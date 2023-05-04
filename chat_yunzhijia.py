@@ -44,7 +44,7 @@ chat_history = {}
 # 直接和chatgpt聊天
 def direct_chatgpt(question, openid):
     chain = get_chat_model(openid)
-    output = chain.predict(human_input=question)
+    output = chain.run(question)
     logging.info(output)
 
     data = {"content": output,

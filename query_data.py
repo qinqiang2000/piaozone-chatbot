@@ -1,6 +1,7 @@
 from collections import defaultdict
 from itertools import chain
 
+from langchain import ConversationChain
 from langchain.callbacks.base import BaseCallbackManager
 from langchain.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain.chains import (
@@ -68,48 +69,16 @@ def get_chain(retriever, api_type=None):
         model = ChatOpenAI(streaming=True, callback_manager=BaseCallbackManager([StreamingStdOutCallbackHandler()]),
                            verbose=True, temperature=0)
 
+    # 单轮对话
     qa = RetrievalQA.from_chain_type(llm=model, chain_type="stuff",
                                      retriever=retriever, return_source_documents=True,
                                      input_key="question", output_key="answer")
-    # qa = ConversationalRetrievalChain.from_llm(model, retriever,
-    #                                            return_source_documents=True)
+
+    # 多轮（容易搞错）
+    qa = ConversationalRetrievalChain.from_llm(model, retriever,
+                                               return_source_documents=True)
+
     return qa
-
-
-# 效果不好，待找到原因
-def get_chain0(retriever):
-    # define two LLM models from OpenAI
-    llm = ChatOpenAI(temperature=0)
-
-    streaming_llm = ChatOpenAI(
-        streaming=True,
-        callback_manager=BaseCallbackManager([
-            StreamingStdOutCallbackHandler()
-        ]),
-        verbose=True,
-        temperature=0
-    )
-
-    # use the LLM Chain to create a question creation chain
-    question_generator = LLMChain(
-        llm=llm,
-        prompt=fpy_condense_question_prompt
-    )
-
-    # use the streaming LLM to create a question answering chain
-    doc_chain = load_qa_chain(
-        llm=streaming_llm,
-        chain_type="stuff",
-        # prompt=fpy_qa_prompt
-        prompt=None
-    )
-
-    return ConversationalRetrievalChain(
-        retriever=retriever,
-        combine_docs_chain=doc_chain,
-        question_generator=question_generator,
-        return_source_documents=True
-    )
 
 
 # 纯粹聊天
@@ -126,15 +95,14 @@ def get_chat_model(sid, api_type=None):
             deployment_name=AZURE_DEPLOYMENT_NAME,
             openai_api_key=AZURE_API_KEY,
             openai_api_type="azure",
-            streaming=True, callback_manager=CallbackManager([StreamingStdOutCallbackHandler()]),
+            streaming=True, callback_manager=BaseCallbackManager([StreamingStdOutCallbackHandler()]),
             verbose=True, temperature=0
         )
     else:
         llm = ChatOpenAI(temperature=0)
 
-    session[sid] = LLMChain(
+    session[sid] = ConversationChain(
         llm=llm,
-        prompt=normal_prompt,
         memory=ConversationBufferWindowMemory(k=5),
     )
 

@@ -1,15 +1,11 @@
 from langchain.prompts.prompt import PromptTemplate
 
-condense_template = """给出底下由三个反引号分隔的聊天记录，以及三个引号分隔的问题，重新表述该问题；如果该问题已经表述的比较完整，则直接返回该问题。
-聊天记录:```
+condense_template = """Given the following conversation and a follow up question, rephrase the follow up question to be a chinese standalone question.
+
+Chat History:
 {chat_history}
-```
-
-问题: \"\"\"
-{question}
-\"\"\"
-
-中文的独立问题:"""
+Follow Up Input: {question}
+Standalone question:"""
 
 fpy_condense_question_prompt = PromptTemplate.from_template(condense_template)
 

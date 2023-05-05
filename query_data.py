@@ -15,7 +15,7 @@ from langchain.memory import ConversationBufferWindowMemory
 
 from prompt import fpy_condense_question_prompt, normal_prompt
 import os
-from settings import AZURE_BASE_URL, AZURE_DEPLOYMENT_NAME, AZURE_API_KEY, AZURE_EBD_DEPLOYMENT_NAME
+from settings import AZURE_BASE_URL, AZURE_DEPLOYMENT_NAME, AZURE_API_KEY, AZURE_EBD_DEPLOYMENT_NAME, API_TYPE
 
 session = {}
 
@@ -43,8 +43,8 @@ def get_citations(results):
     return ' '.join(citations)
 
 
-def get_embeddings(api_type=None):
-    if api_type == 'azure':
+def get_embeddings():
+    if API_TYPE == 'azure':
         os.environ["OPENAI_API_TYPE"] = "azure"
         os.environ["OPENAI_API_BASE"] = AZURE_BASE_URL
         os.environ["OPENAI_API_KEY"] = AZURE_API_KEY
@@ -54,8 +54,8 @@ def get_embeddings(api_type=None):
     return OpenAIEmbeddings()
 
 
-def get_chain(retriever, api_type=None):
-    if api_type == 'azure':
+def get_chain(retriever):
+    if API_TYPE == 'azure':
         model = AzureChatOpenAI(
             openai_api_base=AZURE_BASE_URL,
             openai_api_version="2023-03-15-preview",
@@ -67,28 +67,28 @@ def get_chain(retriever, api_type=None):
         )
     else:
         model = ChatOpenAI(streaming=True, callback_manager=BaseCallbackManager([StreamingStdOutCallbackHandler()]),
-                           verbose=True, temperature=0)
+                           temperature=0)
 
     # 单轮对话
-    qa = RetrievalQA.from_chain_type(llm=model, chain_type="stuff",
-                                     retriever=retriever, return_source_documents=True,
-                                     input_key="question", output_key="answer")
+    # qa = RetrievalQA.from_chain_type(llm=model, chain_type="stuff",
+    #                                  retriever=retriever, return_source_documents=True,
+    #                                  input_key="question", output_key="answer")
 
     # 多轮（容易搞错）
-    qa = ConversationalRetrievalChain.from_llm(model, retriever,
+    qa = ConversationalRetrievalChain.from_llm(model, retriever, condense_question_prompt=fpy_condense_question_prompt,
                                                return_source_documents=True)
 
     return qa
 
 
 # 纯粹聊天
-def get_chat_model(sid, api_type=None):
+def get_chat_model(sid):
     global session
 
     if sid in session:
         return session[sid]
 
-    if api_type == 'azure':
+    if API_TYPE == 'azure':
         llm = AzureChatOpenAI(
             openai_api_base=AZURE_BASE_URL,
             openai_api_version="2023-03-15-preview",

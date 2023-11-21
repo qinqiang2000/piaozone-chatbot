@@ -77,7 +77,7 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks):
     question = re.findall(r'Q\[(.*?)\]', msg.content)
     answer = re.findall(r'A\[(.*?)\]', msg.content)
     if question and answer:
-        task.add_task(add_qa, question[0], answer[0])
+        task.add_task(add_qa, msg, question[0], answer[0])
     else:
         task.add_task(chat_doc, msg, sessionId, task)
 

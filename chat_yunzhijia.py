@@ -56,13 +56,14 @@ def chat_doc(msg: RobotMsg, sessionId, task: BackgroundTasks):
     requests.post(YUNZHIJIA_NOTIFY_URL, json=data)
 
 
-def add_qa(question, answer):
+def add_qa(msg: RobotMsg, question, answer):
     leqi_assistant.add_faq(question, answer)
-    logging.info(f"已经增加语料：{question} --> {answer}")
-    return {
-        "success": True,
-        "data": {"type": 2, "content": "增加语料成功"}
-    }
+    logging.info(f"语料增加成功：{question} --> {answer}")
+
+    data = {"content": "增加语料成功",
+            "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
+    requests.post(YUNZHIJIA_NOTIFY_URL, json=data)
+
 
 @app.post("/chat")
 async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks):

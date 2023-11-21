@@ -16,10 +16,10 @@ class Assistant:
         self.thread_map = {}   # 不能指定id创建thread，所以需要一个map来存储session id和thread_id的映射关系
 
         # 这个需要持久化读取和保存，用于记录上一次的faq文件id
-        self.last_faq_file_id = "file-iOv7TJ4e23BKGlsuIuK4m704"
+        self.last_faq_file_id = "file-Od0RReo2FSXFqdrmKbjaMXBr"
 
     def add_faq(self, question, answer):
-        # 往faq文档中增加一行
+        logging.info(f"增加新语料：{question} --> {answer}")
         add_one_row(FAQ_PATH, question, answer)
 
         # 删除上一次在assistant里面的faq文件

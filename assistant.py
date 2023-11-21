@@ -1,3 +1,4 @@
+import json
 import logging
 
 import openai
@@ -6,6 +7,7 @@ import pandas as pd
 from io import StringIO
 
 FAQ_PATH = "./data/faq.md"
+CONFIG_PATH = "./config.json"
 
 # Assistant类，用于处理openai的请求
 class Assistant:
@@ -15,8 +17,9 @@ class Assistant:
         self.run = None
         self.thread_map = {}   # 不能指定id创建thread，所以需要一个map来存储session id和thread_id的映射关系
 
-        # 这个需要持久化读取和保存，用于记录上一次的faq文件id
-        self.last_faq_file_id = "file-UCRWiw4rJKwBEAU5RiNmZvqk"
+        # 读取配置
+        with open(CONFIG_PATH, 'r') as file:
+            self.config = json.load(file)
 
     def add_faq(self, question, answer):
         logging.info(f"增加新语料：{question} --> {answer}")
@@ -24,13 +27,14 @@ class Assistant:
 
         # 删除上一次在assistant里面的faq文件
         try:
+            last_faq_file_id = self.config.get("last_faq_file_id")
             a_file = self.client.beta.assistants.files.delete(
                 assistant_id=self.assistant_id,
-                file_id=self.last_faq_file_id
+                file_id=last_faq_file_id
             )
 
-            file = self.client.files.delete("file-abc123")
-            logging.info("删除上一次的文件：{a_file} {file}")
+            file = self.client.files.delete(last_faq_file_id)
+            logging.info(f"删除上一次的文件：{a_file} {file}")
         except openai.NotFoundError as e:
             logging.error(f"不存在：{e}")
 
@@ -40,13 +44,16 @@ class Assistant:
             purpose='assistants'
         )
 
-        self.last_faq_file_id = file.id
-
         # 加载到新文件到assistant
         assistant_file = self.client.beta.assistants.files.create(
             assistant_id=self.assistant_id,
-            file_id=self.last_faq_file_id
+            file_id=file.id
         )
+
+        # 保存新文件id
+        self.config["last_faq_file_id"] = file.id
+        with open(CONFIG_PATH, 'w') as file:
+            json.dump(self.config, file)
 
         if assistant_file:
             logging.info(f"增加新文件：{assistant_file}")

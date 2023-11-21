@@ -18,18 +18,20 @@ class Assistant:
         self.thread_map = {}   # 不能指定id创建thread，所以需要一个map来存储session id和thread_id的映射关系
 
         # 这个需要持久化读取和保存，用于记录上一次的faq文件id
-        self.last_faq_file_id = "file-ZUBtqSb4DJVQdljMzqJqrMed"
+        self.last_faq_file_id = "file-YRymhhuxlQFw8sMxWsWe9vcI"
 
     def add_faq(self, question, answer):
         # 往faq文档中增加一行
         add_one_row(FAQ_PATH, question, answer)
 
         # 删除上一次在assistant里面的faq文件
-        if self.last_faq_file_id:
+        try:
             self.client.beta.assistants.files.delete(
                 assistant_id=self.assistant_id,
                 file_id=self.last_faq_file_id
             )
+        except openai.NotFoundError as e:
+            logging.error(f"不存在：{e}")
 
         # 上传新文件
         file = self.client.files.create(

@@ -34,7 +34,7 @@ def chat_doc(msg: RobotMsg, sessionId, task: BackgroundTasks):
     retry = 0
     while True:
         time.sleep(1)
-        answer = leqi_assistant.get_answer(sessionId)
+        answer, annotations = leqi_assistant.get_answer(sessionId)
         if answer:
             output = answer
             break
@@ -43,7 +43,7 @@ def chat_doc(msg: RobotMsg, sessionId, task: BackgroundTasks):
         if retry > 59:
             break
 
-    logging.info(f"{sessionId}: {msg.operatorOpenid} --> {output}")
+    logging.info(f"{sessionId}: {msg.operatorOpenid} --> {output} [{annotations}]")
     data = {"content": output,
             "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
 

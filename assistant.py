@@ -46,7 +46,7 @@ class Assistant:
         )
 
         if assistant_file:
-            logging.info("增加新文件：", assistant_file.id)
+            logging.info(f"增加新文件：{assistant_file}")
 
     def chat(self, session_id, content):
         # 如果用户id不存在，创建一个新的thread;

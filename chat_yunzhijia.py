@@ -72,8 +72,8 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks):
         question = question[0]
         answer = answer[0]
         if len(question) > 3 and len(answer) > 1:
-            logging.info(f"增加语料：{question} --> {answer}")
             leqi_assistant.add_faq(question, answer)
+            logging.info(f"已经增加语料：{question} --> {answer}")
             return {
                 "success": True,
                 "data": {"type": 2, "content": "增加语料成功"}

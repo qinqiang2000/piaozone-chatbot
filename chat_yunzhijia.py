@@ -40,7 +40,7 @@ def chat_doc(msg: RobotMsg, sessionId, task: BackgroundTasks):
             break
 
         retry += 1
-        if retry > 39:
+        if retry > 59:
             break
 
     logging.info(f"{sessionId}: {msg.operatorOpenid} --> {output}")
@@ -61,10 +61,7 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks):
 
     # 取msg.content第一个空格之后的消息
     msg.content = " ".join(msg.content.split()[1:])
-
     logging.info(f"[{sessionId}]: {msg}")
-    if len(msg.content) < 3:
-        return {"success": True, "data": {"type": 2, "content": "请输入至少3个字符，以便我能理解您的问题。"}}
 
     # 异步执行QA
     task.add_task(chat_doc, msg, sessionId, task)

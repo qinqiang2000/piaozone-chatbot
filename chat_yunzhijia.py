@@ -66,15 +66,18 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks):
     logging.info(f"[{sessionId}]: {msg}")
 
     # 正则表达式匹配 Q[] 和 A[] 内的内容，如果匹配，则说明是增加语料的请求
-    question = re.findall(r'Q\[(.*?)\]', msg.content)[0]
-    answer = re.findall(r'A\[(.*?)\]', msg.content)[0]
-    if question and answer and len(question) > 3 and len(answer) > 1:
-        logging.info(f"增加语料：{question} --> {answer}")
-        leqi_assistant.add_faq(question, answer)
-        return {
-            "success": True,
-            "data": {"type": 2, "content": "增加语料成功"}
-        }
+    question = re.findall(r'Q\[(.*?)\]', msg.content)
+    answer = re.findall(r'A\[(.*?)\]', msg.content)
+    if question and answer:
+        question = question[0]
+        answer = answer[0]
+        if len(question) > 3 and len(answer) > 1:
+            logging.info(f"增加语料：{question} --> {answer}")
+            leqi_assistant.add_faq(question, answer)
+            return {
+                "success": True,
+                "data": {"type": 2, "content": "增加语料成功"}
+            }
 
     # 异步执行chat QA
     task.add_task(chat_doc, msg, sessionId, task)

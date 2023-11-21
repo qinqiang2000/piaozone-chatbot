@@ -43,7 +43,7 @@ def chat_doc(msg: RobotMsg, sessionId, task: BackgroundTasks):
         if retry > 39:
             break
 
-    logging.info(msg, output)
+    logging.info(f"{sessionId}: {msg.operatorOpenid} --> {output}")
     data = {"content": output,
             "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
 

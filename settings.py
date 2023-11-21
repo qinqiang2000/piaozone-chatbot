@@ -2,7 +2,7 @@ import logging
 import os
 from dotenv import load_dotenv
 
-logging.basicConfig(format='[%(asctime)s %(filename)s:%(lineno)d] %(levelname)s: %(message)s', level=logging.INFO)
+logging.basicConfig(format='[%(asctime)s %(filename)s:%(lineno)d] %(levelname)s: %(message)s', level=logging.DEBUG)
 
 load_dotenv(override=True)
 

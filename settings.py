@@ -19,3 +19,6 @@ API_TYPE = os.getenv('API_TYPE')
 
 # 云之家通知地址
 YUNZHIJIA_NOTIFY_URL = os.getenv('YUNZHIJIA_NOTIFY_URL')
+
+# 机器人助手id
+LEQI_ASSISTANT_ID = 'asst_G5t60WEtbD9ygU5n2Ol727N6'

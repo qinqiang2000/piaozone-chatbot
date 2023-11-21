@@ -1,18 +1,17 @@
 import logging
+import time
 
 import requests
 from fastapi import FastAPI, Request
-from langchain import FAISS
 from typing import Optional
 from starlette.background import BackgroundTasks
-from settings import YUNZHIJIA_NOTIFY_URL
-from pydantic import BaseModel
-from query_data import get_chain, get_citations, get_chat_model, get_embeddings
 
+from assistant import Assistant
+from settings import *
+from pydantic import BaseModel
 
 app = FastAPI()
-FAISS_DB_PATH = 'db'
-chatbot = None
+leqi_assistant = Assistant(LEQI_ASSISTANT_ID)
 
 
 class RobotMsg(BaseModel):
@@ -26,60 +25,34 @@ class RobotMsg(BaseModel):
     time: int
 
 
-@app.on_event("startup")
-async def startup_event():
-    logging.info("loading vectorstore")
-    # Load from existing index
-    rds = FAISS.load_local(FAISS_DB_PATH, get_embeddings())
-    retriever = rds.as_retriever()
+def chat_doc(msg: RobotMsg, task: BackgroundTasks):
+    global leqi_assistant
+    openid = msg.operatorOpenid
 
-    global chatbot
-    chatbot = get_chain(retriever)
+    leqi_assistant.chat(openid, msg.content)
 
+    output = "抱歉，无法连接到知识库，请稍后再试"
+    retry = 0
+    while True:
+        time.sleep(1)
+        answer = leqi_assistant.get_answer(openid)
+        if answer:
+            break
 
-# create a chat history buffer
-chat_history = {}
-
-
-# 直接和chatgpt聊天
-def direct_chatgpt(question, openid):
-    chain = get_chat_model(openid)
-    output = chain.run(question)
-    logging.info(output)
+        retry += 1
+        if retry > 30:
+            break
 
     data = {"content": output,
             "notifyParams": [{"type": "openIds", "values": [openid]}]}
+
     requests.post(YUNZHIJIA_NOTIFY_URL, json=data)
 
 
-# 根据文档进行聊天式回答
-def chat_doc(question, openid, task: BackgroundTasks):
-    url = YUNZHIJIA_NOTIFY_URL
-
-    if not openid in chat_history:
-        chat_history[openid] = []
-
-    result = chatbot({"question": question, "chat_history": chat_history[openid]})
-    response = result["answer"]
-
-    citations = f"\n更多详情，请参考：{get_citations(result['source_documents'])}\n"
-
-    # 如果是不能回答的任务，则不加入chat_history，转而直接问chatgpt
-    KEYWORDS = ["sorry", "chatgpt", "抱歉"]
-    if any(keyword in result["answer"].lower() for keyword in KEYWORDS):
-        # task.add_task(direct_chatgpt, question, openid)
-        pass
-    else:
-        response = result["answer"] + citations
-        # todo: 加上history有时候会出问题,待解决
-        chat_history[openid].append((result["question"], result["answer"]))
-
-    data = {"content": response,
-            "notifyParams": [{"type": "openIds", "values": [openid]}]}
-
-    logging.info(f"\n{data}")
-
-    requests.post(url, json=data)
+@app.on_event("startup")
+async def startup_event():
+    assistant_id = LEQI_ASSISTANT_ID
+    pass
 
 
 @app.post("/chat")
@@ -93,26 +66,11 @@ async def fpy_chat(msg: RobotMsg, task: BackgroundTasks):
         return {"success": True, "data": {"type": 2, "content": "请输入至少3个字符，以便我能理解您的问题。"}}
 
     # 异步执行QA
-    task.add_task(chat_doc, msg.content, msg.operatorOpenid, task)
+    task.add_task(chat_doc, msg, task)
 
     return {
         "success": True,
-        "data": {"type": 2, "content": "请稍等，正在生成答案(云之家限制，我需生成全部答案后才返回)..."}
-    }
-
-
-@app.post("/chat_test")
-async def chat_test(msg: RobotMsg, task: BackgroundTasks):
-    return await fpy_chat(msg, task)
-
-
-@app.post("/chatgpt")
-async def chatgpt(msg: RobotMsg, task: BackgroundTasks):
-    task.add_task(direct_chatgpt, msg.content, msg.operatorOpenid)
-
-    return {
-        "success": True,
-        "data": {"type": 2, "content": "请稍等，正在生成答案(云之家限制，我需生成全部答案后才返回)..."}
+        "data": {"type": 2, "content": "请稍等（云之家不能streaming push）"}
     }
 
 

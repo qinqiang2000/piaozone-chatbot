@@ -74,6 +74,14 @@ async def fpy_chat(msg: RobotMsg, task: BackgroundTasks):
     }
 
 
+@app.post("/test")
+async def test_chat():
+    logging.info("test")
+    return {
+        "success": True,
+        "data": {"type": 2, "content": "请稍等（云之家不能streaming push）"}
+    }
+
 if __name__ == "__main__":
     import uvicorn
 

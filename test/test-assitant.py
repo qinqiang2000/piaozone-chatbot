@@ -14,6 +14,12 @@ client = OpenAI()
 
 file_path = '../data/faq.md'  # 替换为你的文件路径
 FAQ_FILE_ID = "file-oVYtNglhudbLVCSNuO5EvTf8"
+leqi_assistant = Assistant(LEQI_ASSISTANT_ID)
+
+def tetst_assistant_add_faq():
+    leqi_assistant.add_faq("问题：乐企联用和通用预计什么时候开通", "答案：预计2024年12月")
+
+tetst_assistant_add_faq()
 
 def test_file(question, answer):
     with open(file_path, 'r') as file:
@@ -54,7 +60,6 @@ def test_del_file():
     )
     print(deleted_assistant_file)
 
-test_del_file()
 
 def test_assistant():
     thread_id = 'fpy-abc'

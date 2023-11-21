@@ -27,6 +27,10 @@ class RobotMsg(BaseModel):
     sessionId: Optional[str] = None
 
 
+@app.on_event("startup")
+async def startup_event():
+    pass
+
 def chat_doc(msg: RobotMsg, sessionId, task: BackgroundTasks):
     global leqi_assistant
     leqi_assistant.chat(sessionId, msg.content)
@@ -52,10 +56,13 @@ def chat_doc(msg: RobotMsg, sessionId, task: BackgroundTasks):
     requests.post(YUNZHIJIA_NOTIFY_URL, json=data)
 
 
-@app.on_event("startup")
-async def startup_event():
-    pass
-
+def add_qa(question, answer):
+    leqi_assistant.add_faq(question, answer)
+    logging.info(f"已经增加语料：{question} --> {answer}")
+    return {
+        "success": True,
+        "data": {"type": 2, "content": "增加语料成功"}
+    }
 
 @app.post("/chat")
 async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks):
@@ -69,24 +76,14 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks):
     question = re.findall(r'Q\[(.*?)\]', msg.content)
     answer = re.findall(r'A\[(.*?)\]', msg.content)
     if question and answer:
-        question = question[0]
-        answer = answer[0]
-        if len(question) > 3 and len(answer) > 1:
-            leqi_assistant.add_faq(question, answer)
-            logging.info(f"已经增加语料：{question} --> {answer}")
-            return {
-                "success": True,
-                "data": {"type": 2, "content": "增加语料成功"}
-            }
-
-    # 异步执行chat QA
-    task.add_task(chat_doc, msg, sessionId, task)
-
+        task.add_task(add_qa, question[0], answer[0])
+    else:
+        task.add_task(chat_doc, msg, sessionId, task)
+    
     return {
         "success": True,
         "data": {"type": 2, "content": "请稍等（云之家不能streaming push）"}
     }
-
 
 if __name__ == "__main__":
     import uvicorn

@@ -6,7 +6,7 @@ import pandas as pd
 from io import StringIO
 
 
-FAQ_PATH = "data/faq.md"
+FAQ_PATH = "../data/faq.md"
 
 
 # Assistant类，用于处理openai的请求

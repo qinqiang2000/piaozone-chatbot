@@ -18,7 +18,7 @@ class Assistant:
         self.thread_map = {}   # 不能指定id创建thread，所以需要一个map来存储session id和thread_id的映射关系
 
         # 这个需要持久化读取和保存，用于记录上一次的faq文件id
-        self.last_faq_file_id = None
+        self.last_faq_file_id = "file-ZUBtqSb4DJVQdljMzqJqrMed"
 
     def add_faq(self, question, answer):
         # 往faq文档中增加一行
@@ -45,7 +45,8 @@ class Assistant:
             file_id=self.last_faq_file_id
         )
 
-        logging.info("增加新文件：", assistant_file)
+        if assistant_file:
+            logging.info("增加新文件：", assistant_file.id)
 
     def chat(self, session_id, content):
         # 如果用户id不存在，创建一个新的thread;

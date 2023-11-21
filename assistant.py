@@ -16,7 +16,7 @@ class Assistant:
         self.thread_map = {}   # 不能指定id创建thread，所以需要一个map来存储session id和thread_id的映射关系
 
         # 这个需要持久化读取和保存，用于记录上一次的faq文件id
-        self.last_faq_file_id = "file-Od0RReo2FSXFqdrmKbjaMXBr"
+        self.last_faq_file_id = "file-352i1zhwiBIKhSFIKQZdcD8a"
 
     def add_faq(self, question, answer):
         logging.info(f"增加新语料：{question} --> {answer}")
@@ -106,9 +106,11 @@ def add_one_row(file_path, question, answer):
     new_row[df.columns[1]] = question
     new_row[df.columns[2]] = answer
     df = df._append(new_row, ignore_index=True)
-    print(df.iloc[-1])
+    logging.info(df.iloc[-1])
 
     # 将修改后的 Markdown 表格写回到原文件
     md_table_modified = df.to_markdown(index=False)
     with open(file_path, 'w') as file:
         file.write(md_table_modified)
+
+    logging.info("Markdown 文件已更新并保存。")

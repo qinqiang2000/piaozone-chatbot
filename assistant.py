@@ -5,9 +5,7 @@ from openai import OpenAI
 import pandas as pd
 from io import StringIO
 
-
 FAQ_PATH = "../data/faq.md"
-
 
 # Assistant类，用于处理openai的请求
 class Assistant:
@@ -51,7 +49,7 @@ class Assistant:
             logging.info(f"增加新文件：{assistant_file}")
 
     def chat(self, session_id, content):
-        # 如果用户id不存在，创建一个新的thread;
+        # 如果session_id不存在，创建一个新的thread;
         if session_id not in self.thread_map:
             thread = self.client.beta.threads.create()
             self.thread_map[session_id] = thread.id

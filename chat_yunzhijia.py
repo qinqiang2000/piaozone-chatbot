@@ -72,14 +72,14 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks):
     msg.content = " ".join(msg.content.split()[1:])
     logging.info(f"[{sessionId}]: {msg}")
 
-    # 正则表达式匹配 Q[] 和 A[] 内的内容，如果匹配，则说明是增加语料的请求
+    # 增加语料：正则表达式匹配 Q[] 和 A[] 内的内容，如果匹配，则说明是增加语料的请求
     question = re.findall(r'Q\[(.*?)\]', msg.content)
     answer = re.findall(r'A\[(.*?)\]', msg.content)
     if question and answer:
         task.add_task(add_qa, question[0], answer[0])
     else:
         task.add_task(chat_doc, msg, sessionId, task)
-    
+
     return {
         "success": True,
         "data": {"type": 2, "content": "请稍等（云之家不能streaming push）"}

@@ -46,4 +46,4 @@ class Assistant:
             return None
 
         messages = self.client.beta.threads.messages.list(thread_id=thread_id, limit=1)
-        return messages.data[0].content[0].text.value, messages.data[0].content[0].text.annotations
+        return messages.data[0].content[0].text.value, messages.data[0].content[0].text

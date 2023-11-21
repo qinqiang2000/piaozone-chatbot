@@ -51,7 +51,6 @@ def chat_doc(msg: RobotMsg, task: BackgroundTasks):
 
 @app.on_event("startup")
 async def startup_event():
-    assistant_id = LEQI_ASSISTANT_ID
     pass
 
 
@@ -74,7 +73,7 @@ async def fpy_chat(msg: RobotMsg, task: BackgroundTasks):
     }
 
 
-@app.post("/test")
+@app.get("/test")
 async def test_chat():
     logging.info("test")
     return {

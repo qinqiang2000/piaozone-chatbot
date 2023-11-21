@@ -23,28 +23,29 @@ class RobotMsg(BaseModel):
     operatorOpenid: str = None
     content: str = None
     time: int
+    sessionId: Optional[str] = None
 
 
-def chat_doc(msg: RobotMsg, task: BackgroundTasks):
+def chat_doc(msg: RobotMsg, sessionId, task: BackgroundTasks):
     global leqi_assistant
-    openid = msg.operatorOpenid
+    leqi_assistant.chat(sessionId, msg.content)
 
-    leqi_assistant.chat(openid, msg.content)
-
-    output = "抱歉，无法连接到知识库，请稍后再试"
+    output = "抱歉，大模型响应超时，请稍后再试"
     retry = 0
     while True:
         time.sleep(1)
-        output = leqi_assistant.get_answer(openid)
-        if output:
+        answer = leqi_assistant.get_answer(sessionId)
+        if answer:
+            output = answer
             break
 
         retry += 1
-        if retry > 30:
+        if retry > 39:
             break
 
+    logging.info(msg, output)
     data = {"content": output,
-            "notifyParams": [{"type": "openIds", "values": [openid]}]}
+            "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
 
     requests.post(YUNZHIJIA_NOTIFY_URL, json=data)
 
@@ -55,17 +56,18 @@ async def startup_event():
 
 
 @app.post("/chat")
-async def fpy_chat(msg: RobotMsg, task: BackgroundTasks):
-    filter_str = "@发票云知识库"
+async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks):
+    sessionId = request.headers.get("sessionId")
 
-    msg.content = msg.content.replace(filter_str, "").lstrip(" ")
-    logging.info(msg)
+    # 取msg.content第一个空格之后的消息
+    msg.content = " ".join(msg.content.split()[1:])
 
+    logging.info(f"[{sessionId}]: {msg}")
     if len(msg.content) < 3:
         return {"success": True, "data": {"type": 2, "content": "请输入至少3个字符，以便我能理解您的问题。"}}
 
     # 异步执行QA
-    task.add_task(chat_doc, msg, task)
+    task.add_task(chat_doc, msg, sessionId, task)
 
     return {
         "success": True,

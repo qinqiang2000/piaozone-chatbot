@@ -16,7 +16,7 @@ class Assistant:
         self.thread_map = {}   # 不能指定id创建thread，所以需要一个map来存储session id和thread_id的映射关系
 
         # 这个需要持久化读取和保存，用于记录上一次的faq文件id
-        self.last_faq_file_id = "file-UDl2X81HQuv9tVtWZTgDzNSy"
+        self.last_faq_file_id = "file-UCRWiw4rJKwBEAU5RiNmZvqk"
 
     def add_faq(self, question, answer):
         logging.info(f"增加新语料：{question} --> {answer}")
@@ -24,10 +24,13 @@ class Assistant:
 
         # 删除上一次在assistant里面的faq文件
         try:
-            self.client.beta.assistants.files.delete(
+            a_file = self.client.beta.assistants.files.delete(
                 assistant_id=self.assistant_id,
                 file_id=self.last_faq_file_id
             )
+
+            file = self.client.files.delete("file-abc123")
+            logging.info("删除上一次的文件：{a_file} {file}")
         except openai.NotFoundError as e:
             logging.error(f"不存在：{e}")
 

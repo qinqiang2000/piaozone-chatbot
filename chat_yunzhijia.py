@@ -35,8 +35,8 @@ def chat_doc(msg: RobotMsg, task: BackgroundTasks):
     retry = 0
     while True:
         time.sleep(1)
-        answer = leqi_assistant.get_answer(openid)
-        if answer:
+        output = leqi_assistant.get_answer(openid)
+        if output:
             break
 
         retry += 1

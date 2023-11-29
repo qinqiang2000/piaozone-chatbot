@@ -1,13 +1,14 @@
-import json
-import logging
-
 import openai
 from openai import OpenAI
 import pandas as pd
 from io import StringIO
 
+from common_utils import *
+import yuque_utils
+import settings
+
 FAQ_PATH = "./data/faq.md"
-CONFIG_PATH = "./config.json"
+
 
 # Assistant类，用于处理openai的请求
 class Assistant:
@@ -15,45 +16,23 @@ class Assistant:
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.assistant_id = assistant_id
         self.run = None
-        self.thread_map = {}   # 不能指定id创建thread，所以需要一个map来存储session id和thread_id的映射关系
+        self.thread_map = {}  # 不能指定id创建thread，所以需要一个map来存储session id和thread_id的映射关系
 
-        # 读取配置
-        with open(CONFIG_PATH, 'r') as file:
-            self.config = json.load(file)
+    def add_faq(self, question, answer, submitter):
+        logging.info(f"{submitter} 增加新语料：{question} --> {answer}")
 
-    def add_faq(self, question, answer):
-        logging.info(f"增加新语料：{question} --> {answer}")
-        add_one_row(FAQ_PATH, question, answer)
+        md_content = add_one_row(self.assistant_id, question, answer, submitter)
+        with open(FAQ_PATH, "w", encoding="utf-8") as file:
+            file.write(md_content)
 
         # 删除上一次在assistant里面的faq文件
-        try:
-            last_faq_file_id = self.config.get("last_faq_file_id")
-            a_file = self.client.beta.assistants.files.delete(
-                assistant_id=self.assistant_id,
-                file_id=last_faq_file_id
-            )
-
-            file = self.client.files.delete(last_faq_file_id)
-            logging.info(f"删除上一次的文件：{a_file} {file}")
-        except openai.NotFoundError as e:
-            logging.error(f"不存在：{e}")
-
-        # 上传新文件
-        file = self.client.files.create(
-            file=open(FAQ_PATH, "rb"),
-            purpose='assistants'
-        )
-
+        last_faq_file_id = get_config(self.assistant_id, "last_faq_file_id")
+        self.del_file(last_faq_file_id)
         # 加载到新文件到assistant
-        assistant_file = self.client.beta.assistants.files.create(
-            assistant_id=self.assistant_id,
-            file_id=file.id
-        )
+        assistant_file = self.create_file(FAQ_PATH)
 
         # 保存新文件id
-        self.config["last_faq_file_id"] = file.id
-        with open(CONFIG_PATH, 'w') as file:
-            json.dump(self.config, file)
+        save_config(self.assistant_id, "last_faq_file_id", assistant_file.id)
 
         if assistant_file:
             logging.info(f"增加新文件：{assistant_file}")
@@ -94,15 +73,54 @@ class Assistant:
         messages = self.client.beta.threads.messages.list(thread_id=thread_id, limit=1)
         return messages.data[0].content[0].text
 
+    def list_files(self):
+        assistant_files = self.client.beta.assistants.files.list(
+            assistant_id=self.assistant_id
+        )
+        return assistant_files
+
+    def create_file(self, file_path):
+        # 上传新文件
+        with open(file_path, "rb") as f:
+            file = self.client.files.create(
+                file=f,
+                purpose='assistants'
+            )
+            # 加载到新文件到assistant
+            assistant_file = self.client.beta.assistants.files.create(
+                assistant_id=self.assistant_id,
+                file_id=file.id
+            )
+            return assistant_file
+
+    def del_file(self, file_id):
+        try:
+            deleted_assistant_file = self.client.beta.assistants.files.delete(
+                assistant_id=self.assistant_id,
+                file_id=file_id
+            )
+            file = self.client.files.delete(file_id)
+            logging.info(f"删除上一次的文件：{deleted_assistant_file} {file}")
+            return deleted_assistant_file
+        except openai.NotFoundError as e:
+            logging.error(f"不存在：{e}")
+
 
 # 增加一行到faq.md文件中
-def add_one_row(file_path, question, answer):
-    with open(file_path, 'r') as file:
-        md_content = file.read()
+def add_one_row(assistant_id, question, answer, submitter):
+    # 根据配置获取关联语雀的第一个faq文档内容
+    yuque_relate_and_faq_slug = get_config(assistant_id, "yuque_relate_and_faq_slug")
+    if not len(yuque_relate_and_faq_slug):
+        raise Exception("语雀关联yuque_relate_and_faq_slug配置为空，请检查")
+    repo_and_toc_uuid = next(iter(yuque_relate_and_faq_slug))
+    repo = repo_and_toc_uuid.split("/")[0]
+    faq_slugs = yuque_relate_and_faq_slug[repo_and_toc_uuid]
+    yuque_doc = yuque_utils.get_yuque_doc(repo, faq_slugs[0])
 
+    md_content = yuque_doc["body"].replace(settings.FAQ_DOC_END, "")
+    print(md_content)
     # 将 Markdown 表格内容转换为 StringIO 对象
     md_table = StringIO(md_content)
-
     # 使用 pandas 读取表格，假设表格用 '|' 分隔，并跳过格式行
     df = pd.read_csv(md_table, sep='|', skiprows=[1])
 
@@ -112,15 +130,15 @@ def add_one_row(file_path, question, answer):
     # 增加一行，第一列的值是最后一行第一列的值 + 1
     last_row = df.iloc[-1]
     new_row = last_row.copy()
-    new_row[df.columns[0]] = last_row[df.columns[0]] + 1
-    new_row[df.columns[1]] = question
-    new_row[df.columns[2]] = answer
+    new_row[df.columns[0]] = question
+    new_row[df.columns[1]] = answer
+    new_row[df.columns[2]] = submitter
     df = df._append(new_row, ignore_index=True)
     logging.info(df.iloc[-1])
 
     # 将修改后的 Markdown 表格写回到原文件
     md_table_modified = df.to_markdown(index=False)
-    with open(file_path, 'w') as file:
-        file.write(md_table_modified)
-
+    md_table_modified += "\n" + settings.FAQ_DOC_END
+    yuque_utils.update_yuque_doc(repo, yuque_doc, md_table_modified)
     logging.info("Markdown 文件已更新并保存。")
+    return md_table_modified

@@ -1,7 +1,6 @@
-import logging
 import re
 import time
-
+import yuque_utils
 import requests
 from fastapi import FastAPI, Request
 from typing import Optional
@@ -10,8 +9,11 @@ from starlette.background import BackgroundTasks
 from assistant import Assistant
 from settings import *
 from pydantic import BaseModel
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 app = FastAPI()
+scheduler = AsyncIOScheduler()
 leqi_assistant = Assistant(LEQI_ASSISTANT_ID)
 
 
@@ -29,7 +31,15 @@ class RobotMsg(BaseModel):
 
 @app.on_event("startup")
 async def startup_event():
-    pass
+    # 启动定时任务：同步语雀文档到gpt assistant
+    scheduler.add_job(yuque_utils.sync_yuque_docs_2_assistant(), CronTrigger(hour=2))
+    scheduler.start()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    scheduler.shutdown()
+
 
 def chat_doc(msg: RobotMsg, sessionId, task: BackgroundTasks):
     global leqi_assistant
@@ -57,7 +67,7 @@ def chat_doc(msg: RobotMsg, sessionId, task: BackgroundTasks):
 
 
 def add_qa(msg: RobotMsg, question, answer):
-    leqi_assistant.add_faq(question, answer)
+    leqi_assistant.add_faq(question, answer, msg.operatorName)
     logging.info(f"语料增加成功：{question} --> {answer}")
 
     data = {"content": "增加语料成功",
@@ -85,6 +95,7 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks):
         "success": True,
         "data": {"type": 2, "content": "请稍等（云之家不能streaming push）"}
     }
+
 
 if __name__ == "__main__":
     import uvicorn

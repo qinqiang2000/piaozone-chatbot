@@ -113,12 +113,12 @@ def upload_docs_2_assistant(docs, assistant_id):
     html_docs = []
     faq_docs = []
     for doc in docs:
-        if doc["format"] == "lake" and doc["body_html"]:
-            html_docs.append(doc)
-        elif (doc["format"] == "markdown" or doc["format"] == "lake") \
+        if (doc["format"] == "markdown" or doc["format"] == "lake") \
                 and "faq" in doc["title"].lower() and doc["body"]:
             # 名称带有faq的markdown文档
             faq_docs.append(doc)
+        elif doc["format"] == "lake" and doc["body_html"]:
+            html_docs.append(doc)
     assistant = Assistant(assistant_id)
     operate_faq_doc(assistant, faq_docs)
     operate_common_docs(assistant, html_docs)

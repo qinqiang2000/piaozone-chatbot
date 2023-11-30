@@ -5,13 +5,24 @@ from settings import *
 from common_utils import *
 
 
-def update_yuque_doc(repo, doc, new_content):
+def update_yuque_doc(repo, doc, new_content, fm=None):
+    """
+    修改语雀文档
+    :param repo:
+    :param doc:
+    :param new_content:
+    :param fm: 不为空，则指定修改format
+    :return:
+    """
     url = f"{YUQUE_BASE_URL}/repos/{YUQUE_NAMESPACE}/{repo}/docs/{doc['id']}"
     logging.info(f"请求修改单个语雀文档{url}")
+    data = {"body": new_content,
+            "title": doc["title"],
+            "slug": doc["slug"]}
+    if fm:
+        data["format"] = fm
     response = requests.put(url, headers={"X-Auth-Token": YUQUE_AUTH_TOKEN,
-                                          "User-Agent": YUQUE_REQUEST_AGENT}, data={"body": new_content,
-                                                                                    "title": doc["title"],
-                                                                                    "slug": doc["slug"]})
+                                          "User-Agent": YUQUE_REQUEST_AGENT}, data=data)
     if response.status_code != 200:
         logging.error(f"请求修改单个语雀文档{url}失败,返回码为{response.status_code}")
         raise Exception("请求修改单个语雀文档失败")
@@ -104,7 +115,8 @@ def upload_docs_2_assistant(docs, assistant_id):
     for doc in docs:
         if doc["format"] == "lake" and doc["body_html"]:
             html_docs.append(doc)
-        elif doc["format"] == "markdown" and "faq" in doc["title"].lower() and doc["body"]:
+        elif (doc["format"] == "markdown" or doc["format"] == "lake") \
+                and "faq" in doc["title"].lower() and doc["body"]:
             # 名称带有faq的markdown文档
             faq_docs.append(doc)
     assistant = Assistant(assistant_id)
@@ -119,6 +131,9 @@ def operate_faq_doc(assistant, faq_docs):
     :param faq_docs: 正常应该只有一个
     :return:
     """
+    if len(faq_docs) == 0:
+        logging.info("语雀文档中没有符合faq规定的相关文档，请确定")
+        return
     last_faq_file_id = get_config(assistant.assistant_id, "last_faq_file_id")
     if last_faq_file_id:
         assistant.del_file(last_faq_file_id)
@@ -149,6 +164,9 @@ def operate_common_docs(assistant, html_docs):
     :param html_docs:
     :return:
     """
+    if len(html_docs) == 0:
+        logging.info("语雀文档中没有复合规定的相关文档，请确定")
+        return
     operated_files = distribute_common_files(html_docs)
     last_common_file_ids = get_config(assistant.assistant_id, "last_common_file_ids")
     # 删除旧文件

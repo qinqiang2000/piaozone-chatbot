@@ -118,7 +118,6 @@ def add_one_row(assistant_id, question, answer, submitter):
     yuque_doc = yuque_utils.get_yuque_doc(repo, faq_slugs[0])
 
     md_content = yuque_doc["body"].replace(settings.FAQ_DOC_END, "")
-    print(md_content)
     # 将 Markdown 表格内容转换为 StringIO 对象
     md_table = StringIO(md_content)
     # 使用 pandas 读取表格，假设表格用 '|' 分隔，并跳过格式行
@@ -139,6 +138,6 @@ def add_one_row(assistant_id, question, answer, submitter):
     # 将修改后的 Markdown 表格写回到原文件
     md_table_modified = df.to_markdown(index=False)
     md_table_modified += "\n" + settings.FAQ_DOC_END
-    yuque_utils.update_yuque_doc(repo, yuque_doc, md_table_modified)
+    yuque_utils.update_yuque_doc(repo, yuque_doc, md_table_modified, "markdown")
     logging.info("Markdown 文件已更新并保存。")
     return md_table_modified

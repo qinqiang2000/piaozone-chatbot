@@ -7,6 +7,7 @@ from common_utils import *
 
 def update_yuque_doc(repo, doc, new_content):
     url = f"{YUQUE_BASE_URL}/repos/{YUQUE_NAMESPACE}/{repo}/docs/{doc['id']}"
+    logging.info(f"请求修改单个语雀文档{url}")
     response = requests.put(url, headers={"X-Auth-Token": YUQUE_AUTH_TOKEN,
                                           "User-Agent": YUQUE_REQUEST_AGENT}, data={"body": new_content,
                                                                                     "title": doc["title"],
@@ -24,6 +25,7 @@ def get_yuque_doc(repo, slug):
     :return:
     """
     url = f"{YUQUE_BASE_URL}/repos/{YUQUE_NAMESPACE}/{repo}/docs/{slug}"
+    logging.info(f"请求获取单个语雀文档{url}")
     response = requests.get(url=url, headers={"X-Auth-Token": YUQUE_AUTH_TOKEN,
                                               "User-Agent": YUQUE_REQUEST_AGENT})
     if response.status_code != 200:
@@ -39,6 +41,7 @@ def list_yuque_toc(repo):
     :return:
     """
     url = f"{YUQUE_BASE_URL}/repos/{YUQUE_NAMESPACE}/{repo}/toc"
+    logging.info(f"请求获取语雀目录{url}")
     response = requests.get(url=url,
                             headers={"X-Auth-Token": YUQUE_AUTH_TOKEN,
                                      "User-Agent": YUQUE_REQUEST_AGENT})

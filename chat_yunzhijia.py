@@ -91,7 +91,7 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, yzj_t
         task.add_task(lambda:
                       yuque_utils.sync_yuque_docs_2_assistant(assistant_id=gpt_assistant_id,
                                                               notify_id=msg.operatorOpenid, yzj_token=yzj_token))
-    else:
+    elif msg.content:
         # 增加语料：正则表达式匹配 Q[] 和 A[] 内的内容，如果匹配，则说明是增加语料的请求
         question = re.findall(r'Q\[(.*?)\]', msg.content)
         answer = re.findall(r'A\[(.*?)\]', msg.content)

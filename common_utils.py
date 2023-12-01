@@ -1,8 +1,13 @@
 import logging
 
-from settings import CONFIG_PATH
+from settings import CONFIG_PATH, YZJ_ASSISTANT_RELATE_PATH
 import json
 from bs4 import BeautifulSoup
+
+
+def get_assistant_id_by_yzj_token(yzj_token):
+    with open(YZJ_ASSISTANT_RELATE_PATH, "r", encoding="utf-8") as file:
+        return json.load(file)[yzj_token]
 
 
 def get_config(assistant_id=None, key=None):

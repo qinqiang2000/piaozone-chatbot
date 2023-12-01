@@ -250,10 +250,11 @@ def add_index_in_doc_start(file_buckets, doc_buckets):
         os.remove(file_buckets[index].name + ".tmp")
 
 
-def sync_yuque_docs_2_assistant(repo=None, toc_uuid=None, assistant_id=None, notify_id=None):
+def sync_yuque_docs_2_assistant(repo=None, toc_uuid=None, assistant_id=None, notify_id=None, yzj_token=None):
     """
     同步语雀文档到assistant，三个参数都传则表示手动指定同步;
     :param notify_id: 云之家通知id
+    :param yzj_token
     :param repo:
     :param toc_uuid:
     :param assistant_id: 只传assistant id则只同步对应机器人id的文档
@@ -277,11 +278,10 @@ def sync_yuque_docs_2_assistant(repo=None, toc_uuid=None, assistant_id=None, not
             yuque_relate_and_faq_slug = config[assis_id]["yuque_relate_and_faq_slug"]
             upload_docs_2_assistant_with_config(assis_id, yuque_relate_and_faq_slug)
 
-    if notify_id:
+    if notify_id and yzj_token:
         logging.info(f"需要云之家群聊通知{notify_id}")
         data = {"content": "同步最新文档至Assistant成功",
                 "notifyParams": [{"type": "openIds", "values": [notify_id]}]}
-        yzj_token = get_config(assistant_id, "yzj_token")
         requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
 
 

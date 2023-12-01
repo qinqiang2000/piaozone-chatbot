@@ -43,7 +43,7 @@ async def shutdown_event():
     logging.info("定时任务关闭")
 
 
-def chat_doc(leqi_assistant, msg: RobotMsg, session_id):
+def chat_doc(leqi_assistant, yzj_token, msg: RobotMsg, session_id):
     leqi_assistant.chat(session_id, msg.content)
 
     output = "抱歉，大模型响应超时，请稍后再试"
@@ -64,42 +64,41 @@ def chat_doc(leqi_assistant, msg: RobotMsg, session_id):
     data = {"content": output,
             "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
 
-    yzj_token = get_config(leqi_assistant.assistant_id, "yzj_token")
     requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
 
 
-def add_qa(leqi_assistant, msg: RobotMsg, question, answer):
+def add_qa(leqi_assistant, yzj_token, msg: RobotMsg, question, answer):
     leqi_assistant.add_faq(question, answer, msg.operatorName)
     logging.info(f"语料增加成功：{question} --> {answer}")
 
     data = {"content": "增加语料成功",
             "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
-    yzj_token = get_config(leqi_assistant.assistant_id, "yzj_token")
     requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
 
 
 @app.post("/chat")
-async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, gpt_assistant_id: str = Query(...)):
+async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, yzj_token: str = Query(...)):
     session_id = request.headers.get("sessionId")
-    if not gpt_assistant_id:
-        logging.error("云之家群聊机器人链接没有配置参数gpt_assistant_id")
+    if not yzj_token:
+        logging.error("云之家群聊机器人链接没有配置参数yzj_token")
         return
     # 取msg.content第一个空格之后的消息
     msg.content = " ".join(msg.content.split()[1:])
     logging.info(f"[{session_id}]: {msg}")
+    gpt_assistant_id = get_assistant_id_by_yzj_token(yzj_token)
     leqi_assistant = Assistant(gpt_assistant_id)
     if msg.content == "请同步最新文档到Assistant":
         task.add_task(lambda:
                       yuque_utils.sync_yuque_docs_2_assistant(assistant_id=gpt_assistant_id,
-                                                              notify_id=msg.operatorOpenid))
+                                                              notify_id=msg.operatorOpenid, yzj_token=yzj_token))
     else:
         # 增加语料：正则表达式匹配 Q[] 和 A[] 内的内容，如果匹配，则说明是增加语料的请求
         question = re.findall(r'Q\[(.*?)\]', msg.content)
         answer = re.findall(r'A\[(.*?)\]', msg.content)
         if question and answer:
-            task.add_task(add_qa, leqi_assistant, msg, question[0], answer[0])
+            task.add_task(add_qa, leqi_assistant, yzj_token, msg, question[0], answer[0])
         else:
-            task.add_task(chat_doc, leqi_assistant, msg, session_id)
+            task.add_task(chat_doc, leqi_assistant, yzj_token, msg, session_id)
 
     return {
         "success": True,

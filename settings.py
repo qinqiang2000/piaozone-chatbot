@@ -18,7 +18,7 @@ AZURE_EBD_DEPLOYMENT_NAME = os.getenv('AZURE_EBD_DEPLOYMENT_NAME')
 API_TYPE = os.getenv('API_TYPE')
 
 # 云之家通知地址
-YUNZHIJIA_NOTIFY_URL = os.getenv('YUNZHIJIA_NOTIFY_URL')
+YUNZHIJIA_NOTIFY_URL = "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken={}"
 
 # 机器人助手id
 LEQI_ASSISTANT_ID = 'asst_G5t60WEtbD9ygU5n2Ol727N6'

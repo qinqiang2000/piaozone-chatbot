@@ -10,3 +10,4 @@ requests
 apscheduler
 pydantic
 starlette
+python-multipart

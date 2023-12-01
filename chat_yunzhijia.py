@@ -2,10 +2,11 @@ import re
 import time
 import yuque_utils
 import requests
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Query
 from typing import Optional
 from starlette.background import BackgroundTasks
 
+from common_utils import *
 from assistant import Assistant
 from settings import *
 from pydantic import BaseModel
@@ -14,7 +15,6 @@ from apscheduler.triggers.cron import CronTrigger
 
 app = FastAPI()
 scheduler = AsyncIOScheduler()
-leqi_assistant = Assistant(LEQI_ASSISTANT_ID)
 
 
 class RobotMsg(BaseModel):
@@ -43,15 +43,14 @@ async def shutdown_event():
     logging.info("定时任务关闭")
 
 
-def chat_doc(msg: RobotMsg, sessionId, task: BackgroundTasks):
-    global leqi_assistant
-    leqi_assistant.chat(sessionId, msg.content)
+def chat_doc(leqi_assistant, msg: RobotMsg, session_id, task: BackgroundTasks):
+    leqi_assistant.chat(session_id, msg.content)
 
     output = "抱歉，大模型响应超时，请稍后再试"
     retry = 0
     while True:
         time.sleep(1)
-        answer = leqi_assistant.get_answer(sessionId)
+        answer = leqi_assistant.get_answer(session_id)
         if answer:
             logging.info(answer)
             output = answer.value
@@ -61,37 +60,41 @@ def chat_doc(msg: RobotMsg, sessionId, task: BackgroundTasks):
         if retry > 59:
             break
 
-    logging.info(f"{sessionId}: {msg.operatorOpenid} --> {output} ]")
+    logging.info(f"{session_id}: {msg.operatorOpenid} --> {output} ]")
     data = {"content": output,
             "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
 
-    requests.post(YUNZHIJIA_NOTIFY_URL, json=data)
+    yzj_token = get_config(leqi_assistant.assistant_id, "yzj_token")
+    requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
 
 
-def add_qa(msg: RobotMsg, question, answer):
+def add_qa(leqi_assistant, msg: RobotMsg, question, answer):
     leqi_assistant.add_faq(question, answer, msg.operatorName)
     logging.info(f"语料增加成功：{question} --> {answer}")
 
     data = {"content": "增加语料成功",
             "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
-    requests.post(YUNZHIJIA_NOTIFY_URL, json=data)
+    yzj_token = get_config(leqi_assistant.assistant_id, "yzj_token")
+    requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
 
 
 @app.post("/chat")
-async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks):
-    sessionId = request.headers.get("sessionId")
-
+async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, gpt_assistant_id: str = Query(...)):
+    session_id = request.headers.get("sessionId")
+    if not gpt_assistant_id:
+        logging.error("云之家群聊机器人链接没有配置参数gpt_assistant_id")
+        return
     # 取msg.content第一个空格之后的消息
     msg.content = " ".join(msg.content.split()[1:])
-    logging.info(f"[{sessionId}]: {msg}")
-
+    logging.info(f"[{session_id}]: {msg}")
+    leqi_assistant = Assistant(gpt_assistant_id)
     # 增加语料：正则表达式匹配 Q[] 和 A[] 内的内容，如果匹配，则说明是增加语料的请求
     question = re.findall(r'Q\[(.*?)\]', msg.content)
     answer = re.findall(r'A\[(.*?)\]', msg.content)
     if question and answer:
-        task.add_task(add_qa, msg, question[0], answer[0])
+        task.add_task(add_qa, leqi_assistant, msg, question[0], answer[0])
     else:
-        task.add_task(chat_doc, msg, sessionId, task)
+        task.add_task(chat_doc, leqi_assistant, msg, session_id, task)
 
     return {
         "success": True,

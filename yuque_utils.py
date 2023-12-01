@@ -214,7 +214,7 @@ def distribute_common_files(docs):
         doc_buckets[min_bucket_index].append(doc)
         # 在对应文件位的文件开头和末尾添加当前文件内容
         with open(file_buckets[min_bucket_index].name, "a", encoding="utf-8") as file:
-            file.write(doc["body_html"])
+            file.write(clear_css_code(doc["body_html"]))
             file.write(single_doc_end_format.format(doc["title"], doc["word_count"]))
 
     add_index_in_doc_start(file_buckets, doc_buckets)
@@ -250,12 +250,13 @@ def add_index_in_doc_start(file_buckets, doc_buckets):
         os.remove(file_buckets[index].name + ".tmp")
 
 
-def sync_yuque_docs_2_assistant(repo=None, toc_uuid=None, assistant_id=None):
+def sync_yuque_docs_2_assistant(repo=None, toc_uuid=None, assistant_id=None, notify_id=None):
     """
-    同步语雀文档到assistant，三个参数都传则表示手动指定同步
+    同步语雀文档到assistant，三个参数都传则表示手动指定同步;
+    :param notify_id: 云之家通知id
     :param repo:
     :param toc_uuid:
-    :param assistant_id:
+    :param assistant_id: 只传assistant id则只同步对应机器人id的文档
     :return:
     """
     # 手动同步
@@ -263,14 +264,33 @@ def sync_yuque_docs_2_assistant(repo=None, toc_uuid=None, assistant_id=None):
         logging.info(f"同步库{repo}目录id为{toc_uuid}的所有文件到assistant {assistant_id}")
         upload_docs_2_assistant(get_doc_from_tocs(get_tocs_from_parent(repo, toc_uuid)), assistant_id)
         return
+
     # 定时任务同步
-    config = get_config()
-    for assistant_id in list(config.keys()):
-        tocs = []
-        for repo_and_toc_uuid in config[assistant_id]["yuque_relate_and_faq_slug"]:
-            arr = repo_and_toc_uuid.split("/")
-            repo = arr[0]
-            toc_uuid = arr[1]
-            logging.info(f"同步库{repo}目录id为{toc_uuid}的所有文件到assistant {assistant_id}")
-            tocs.extend(get_tocs_from_parent(repo, toc_uuid))
-        upload_docs_2_assistant(get_doc_from_tocs(tocs), assistant_id)
+    config = get_config(assistant_id)
+    if assistant_id:
+        # assistant_id不为空，只处理assistant_id对应的配置
+        yuque_relate_and_faq_slug = config["yuque_relate_and_faq_slug"]
+        upload_docs_2_assistant_with_config(assistant_id, yuque_relate_and_faq_slug)
+    else:
+        # assistant_id为空，则遍历所有配置
+        for assis_id in list(config.keys()):
+            yuque_relate_and_faq_slug = config[assis_id]["yuque_relate_and_faq_slug"]
+            upload_docs_2_assistant_with_config(assis_id, yuque_relate_and_faq_slug)
+
+    if notify_id:
+        logging.info(f"需要云之家群聊通知{notify_id}")
+        data = {"content": "同步最新文档至Assistant成功",
+                "notifyParams": [{"type": "openIds", "values": [notify_id]}]}
+        yzj_token = get_config(assistant_id, "yzj_token")
+        requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
+
+
+def upload_docs_2_assistant_with_config(assistant_id, yuque_relate_and_faq_slug):
+    tocs = []
+    for repo_and_toc_uuid in yuque_relate_and_faq_slug:
+        arr = repo_and_toc_uuid.split("/")
+        repo = arr[0]
+        toc_uuid = arr[1]
+        logging.info(f"同步库{repo}目录id为{toc_uuid}的所有文件到assistant {assistant_id}")
+        tocs.extend(get_tocs_from_parent(repo, toc_uuid))
+    upload_docs_2_assistant(get_doc_from_tocs(tocs), assistant_id)

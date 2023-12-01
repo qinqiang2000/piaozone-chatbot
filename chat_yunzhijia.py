@@ -43,7 +43,7 @@ async def shutdown_event():
     logging.info("定时任务关闭")
 
 
-def chat_doc(leqi_assistant, msg: RobotMsg, session_id, task: BackgroundTasks):
+def chat_doc(leqi_assistant, msg: RobotMsg, session_id):
     leqi_assistant.chat(session_id, msg.content)
 
     output = "抱歉，大模型响应超时，请稍后再试"
@@ -88,13 +88,17 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, gpt_a
     msg.content = " ".join(msg.content.split()[1:])
     logging.info(f"[{session_id}]: {msg}")
     leqi_assistant = Assistant(gpt_assistant_id)
-    # 增加语料：正则表达式匹配 Q[] 和 A[] 内的内容，如果匹配，则说明是增加语料的请求
-    question = re.findall(r'Q\[(.*?)\]', msg.content)
-    answer = re.findall(r'A\[(.*?)\]', msg.content)
-    if question and answer:
-        task.add_task(add_qa, leqi_assistant, msg, question[0], answer[0])
+    if msg.content == "请同步最新文档到Assistant":
+        task.add_task(
+            yuque_utils.sync_yuque_docs_2_assistant(assistant_id=gpt_assistant_id, notify_id=msg.operatorOpenid))
     else:
-        task.add_task(chat_doc, leqi_assistant, msg, session_id, task)
+        # 增加语料：正则表达式匹配 Q[] 和 A[] 内的内容，如果匹配，则说明是增加语料的请求
+        question = re.findall(r'Q\[(.*?)\]', msg.content)
+        answer = re.findall(r'A\[(.*?)\]', msg.content)
+        if question and answer:
+            task.add_task(add_qa, leqi_assistant, msg, question[0], answer[0])
+        else:
+            task.add_task(chat_doc, leqi_assistant, msg, session_id)
 
     return {
         "success": True,

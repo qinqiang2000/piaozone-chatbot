@@ -11,3 +11,4 @@ apscheduler
 pydantic
 starlette
 python-multipart
+bs4

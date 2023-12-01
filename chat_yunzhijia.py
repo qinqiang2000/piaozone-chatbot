@@ -89,8 +89,9 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, gpt_a
     logging.info(f"[{session_id}]: {msg}")
     leqi_assistant = Assistant(gpt_assistant_id)
     if msg.content == "请同步最新文档到Assistant":
-        task.add_task(
-            yuque_utils.sync_yuque_docs_2_assistant(assistant_id=gpt_assistant_id, notify_id=msg.operatorOpenid))
+        task.add_task(lambda:
+                      yuque_utils.sync_yuque_docs_2_assistant(assistant_id=gpt_assistant_id,
+                                                              notify_id=msg.operatorOpenid))
     else:
         # 增加语料：正则表达式匹配 Q[] 和 A[] 内的内容，如果匹配，则说明是增加语料的请求
         question = re.findall(r'Q\[(.*?)\]', msg.content)

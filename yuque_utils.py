@@ -1,3 +1,6 @@
+import urllib.request
+import urllib.parse
+
 import requests
 
 from assistant import Assistant
@@ -124,6 +127,37 @@ def upload_docs_2_assistant(docs, assistant_id):
     operate_common_docs(assistant, html_docs)
 
 
+def parse_pdf_files_into_yuque_doc(doc):
+    """
+    将doc的body_html的pdf下载下来，转化为html内容，存储在doc对象（title、body_html、word_count）
+    供后续方法distribute_common_files分配文档
+    :param doc:
+    :return:
+    """
+    docs = []
+    # 获取文档中href以pdf结尾的文档
+    html = BeautifulSoup(doc["body_html"], "html.parser")
+    a_tags = html.find_all("a")
+    for a_tag in a_tags:
+        pdf_url = a_tag.get('href')
+        if pdf_url.endswith(".pdf"):
+            filename = os.path.basename(urllib.parse.urlparse(pdf_url).path)
+            # 下载pdf_url文件到filename路径上
+            urllib.request.urlretrieve(pdf_url, filename=filename)
+            filename_no_suffix = os.path.splitext(filename)[0]
+            # 将上述下载的pdf文件转化为docx，并返回字数
+            docx_path, word_count = convert_pdf_to_docx(filename, filename_no_suffix)
+            # 将docx文件转化为html内容
+            body_html = get_docx_html_content(docx_path)
+            doc_ = {
+                "word_count": word_count,
+                "body_html": body_html,
+                "title": a_tag.get_text()
+            }
+            docs.append(doc_)
+    return docs
+
+
 def operate_faq_doc(assistant, faq_docs):
     """
     处理FAQ.md文档，并上传到assistant
@@ -185,39 +219,57 @@ def operate_common_docs(assistant, html_docs):
 
 def distribute_common_files(docs):
     """
-    将文件内容平均分配到ASSISTANT_FILE_NUM个文件位中
+    将文件内容平均分配到ASSISTANT_FILE_NUM_LIMIT个文件位中
     :param docs:
     :return:
     """
-    # 对输入文件数组按word_count进行排序（从大到小）
-    sorted_docs = sorted(docs, key=lambda x: x["word_count"], reverse=True)
+    act_num_more_less = False
+    limit = ASSISTANT_FILE_NUM_LIMIT
+    if len(docs) < limit:
+        # 语雀文档实际数量小于assistant的文件上限数，则无需分配，直接按顺序存储即可
+        logging.info("语雀实际文档数小于assistant的文件上限数，一个语雀文档对应一个assistant文件即可")
+        limit = len(docs)
+        act_num_more_less = True
 
-    word_count_buckets = [[] for _ in range(ASSISTANT_FILE_NUM)]
-    doc_buckets = [[] for _ in range(ASSISTANT_FILE_NUM)]
     file_buckets = []
-    # 初始化ASSISTANT_FILE_NUM个文件
-    for index in range(ASSISTANT_FILE_NUM):
-        with open(str(index + 1) + ".html.tmp", 'w', encoding="utf-8") as file:
-            file.write("")
-            file_buckets.append(file)
-
     single_doc_end_format = f"<br><b>{SINGLE_DOC_END}</b><br>"
-    # 对于排序后的每个元素，找到当前总和最小的桶，并将其放入
-    for doc in sorted_docs:
-        # 计算每个文件的字数总和
-        word_count_bucket_sums = [sum(count_bucket) for count_bucket in word_count_buckets]
+    if act_num_more_less:
+        for index in range(limit):
+            # 语雀实际文档数小于assistant的文件上限数，一个语雀文档对应一个assistant文件即可
+            doc = docs[index]
+            with open(str(index + 1) + ".html", "w", encoding="utf-8") as file:
+                file.write(
+                    f"<b>文件索引：</b><br>《{doc['title']} 》开始位置（字数）：0<br>"
+                    f"<b>===================================索引分割============================================</b>")
+                file.write(clear_css_code(doc["body_html"]))
+                file.write(single_doc_end_format.format(doc["title"], doc["word_count"]))
+                file_buckets.append(file)
 
-        # 找到总和最小的文件的索引
-        min_bucket_index = word_count_bucket_sums.index(min(word_count_bucket_sums))
+    if not act_num_more_less:
+        for index in range(limit):
+            # 初始化ASSISTANT_FILE_NUM_LIMIT个文件
+            with open(str(index + 1) + ".html.tmp", 'w', encoding="utf-8") as file:
+                file.write("")
+                file_buckets.append(file)
 
-        word_count_buckets[min_bucket_index].append(doc["word_count"])
-        doc_buckets[min_bucket_index].append(doc)
-        # 在对应文件位的文件开头和末尾添加当前文件内容
-        with open(file_buckets[min_bucket_index].name, "a", encoding="utf-8") as file:
-            file.write(clear_css_code(doc["body_html"]))
-            file.write(single_doc_end_format.format(doc["title"], doc["word_count"]))
+        word_count_buckets = [[] for _ in range(limit)]
+        doc_buckets = [[] for _ in range(limit)]
+        # 对输入文件数组按word_count进行排序（从大到小）
+        sorted_docs = sorted(docs, key=lambda x: x["word_count"], reverse=True)
+        # 对于排序后的每个元素，找到当前总和最小的桶，并将其放入
+        for doc in sorted_docs:
+            # 计算每个文件的字数总和
+            word_count_bucket_sums = [sum(count_bucket) for count_bucket in word_count_buckets]
 
-    add_index_in_doc_start(file_buckets, doc_buckets)
+            # 找到总和最小的文件的索引
+            min_bucket_index = word_count_bucket_sums.index(min(word_count_bucket_sums))
+
+            word_count_buckets[min_bucket_index].append(doc["word_count"])
+            doc_buckets[min_bucket_index].append(doc)
+            with open(file_buckets[min_bucket_index].name, "a", encoding="utf-8") as file:
+                file.write(clear_css_code(doc["body_html"]))
+                file.write(single_doc_end_format.format(doc["title"], doc["word_count"]))
+        add_index_in_doc_start(file_buckets, doc_buckets)
     return file_buckets
 
 
@@ -229,7 +281,7 @@ def add_index_in_doc_start(file_buckets, doc_buckets):
     :return:
     """
     chunk_size = 1024 * 1024
-    for index in range(ASSISTANT_FILE_NUM):
+    for index in range(len(file_buckets)):
         with open(file_buckets[index].name, "r", encoding="utf-8") as ori_file, \
                 open(ori_file.name[:-len(".tmp")], "w", encoding="utf-8") as file:
             file.write("<b>文件索引：</b><br>")

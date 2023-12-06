@@ -27,7 +27,7 @@ YUQUE_AUTH_TOKEN = "aAzViMlNLUtykug7vU5EnmQKvYn9DZGQICFmL3mB"
 YUQUE_NAMESPACE = "nbklz3"
 YUQUE_BASE_URL = "https://jdpiaozone.yuque.com/api/v2"
 YUQUE_REQUEST_AGENT = "piaozone"
-ASSISTANT_FILE_NUM = 9
+ASSISTANT_FILE_NUM_LIMIT = 9
 SINGLE_DOC_END = "========================================《{}》结尾，字数：{}============================================="
 
 CONFIG_PATH = "./config.json"

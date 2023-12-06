@@ -127,37 +127,6 @@ def upload_docs_2_assistant(docs, assistant_id):
     operate_common_docs(assistant, html_docs)
 
 
-def parse_pdf_files_into_yuque_doc(doc):
-    """
-    将doc的body_html的pdf下载下来，转化为html内容，存储在doc对象（title、body_html、word_count）
-    供后续方法distribute_common_files分配文档
-    :param doc:
-    :return:
-    """
-    docs = []
-    # 获取文档中href以pdf结尾的文档
-    html = BeautifulSoup(doc["body_html"], "html.parser")
-    a_tags = html.find_all("a")
-    for a_tag in a_tags:
-        pdf_url = a_tag.get('href')
-        if pdf_url.endswith(".pdf"):
-            filename = os.path.basename(urllib.parse.urlparse(pdf_url).path)
-            # 下载pdf_url文件到filename路径上
-            urllib.request.urlretrieve(pdf_url, filename=filename)
-            filename_no_suffix = os.path.splitext(filename)[0]
-            # 将上述下载的pdf文件转化为docx，并返回字数
-            docx_path, word_count = convert_pdf_to_docx(filename, filename_no_suffix)
-            # 将docx文件转化为html内容
-            body_html = get_docx_html_content(docx_path)
-            doc_ = {
-                "word_count": word_count,
-                "body_html": body_html,
-                "title": a_tag.get_text()
-            }
-            docs.append(doc_)
-    return docs
-
-
 def operate_faq_doc(assistant, faq_docs):
     """
     处理FAQ.md文档，并上传到assistant

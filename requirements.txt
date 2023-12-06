@@ -13,5 +13,3 @@ starlette
 python-multipart
 bs4
 mammoth
-pdf2docx
-docx

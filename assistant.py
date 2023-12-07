@@ -21,7 +21,7 @@ class Assistant:
     def add_faq(self, question, answer, submitter):
         logging.info(f"{submitter} 增加新语料：{question} --> {answer}")
 
-        md_content = add_one_row(self.assistant_id, question, answer, submitter)
+        md_content = add_one_row(self.assistant_id, question, answer)
         with open(FAQ_PATH, "w", encoding="utf-8") as file:
             file.write(md_content)
 
@@ -107,7 +107,7 @@ class Assistant:
 
 
 # 增加一行到faq.md文件中
-def add_one_row(assistant_id, question, answer, submitter):
+def add_one_row(assistant_id, question, answer):
     # 根据配置获取关联语雀的第一个faq文档内容
     yuque_relate_and_faq_slug = get_config(assistant_id, "yuque_relate_and_faq_slug")
     if not len(yuque_relate_and_faq_slug):
@@ -131,7 +131,6 @@ def add_one_row(assistant_id, question, answer, submitter):
     new_row = last_row.copy()
     new_row[df.columns[0]] = question
     new_row[df.columns[1]] = answer
-    new_row[df.columns[2]] = submitter
     df = df._append(new_row, ignore_index=True)
     logging.info(df.iloc[-1])
 

@@ -1,6 +1,3 @@
-import urllib.request
-import urllib.parse
-
 import requests
 
 from assistant import Assistant

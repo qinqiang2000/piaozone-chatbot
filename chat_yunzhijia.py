@@ -2,6 +2,7 @@ import re
 import time
 import yuque_utils
 import requests
+import httpcore
 from fastapi import FastAPI, Request, Query
 from typing import Optional
 from starlette.background import BackgroundTasks
@@ -44,21 +45,25 @@ async def shutdown_event():
 
 
 def chat_doc(leqi_assistant, yzj_token, msg: RobotMsg, session_id):
-    leqi_assistant.chat(session_id, msg.content)
-
+    has_time_out = False
     output = "抱歉，大模型响应超时，请稍后再试"
+    try:
+        leqi_assistant.chat(session_id, msg.content)
+    except httpcore.ConnectTimeout:
+        has_time_out = True
     retry = 0
-    while True:
-        time.sleep(1)
-        answer = leqi_assistant.get_answer(session_id)
-        if answer:
-            logging.info(answer)
-            output = answer.value
-            break
+    if not has_time_out:
+        while True:
+            time.sleep(1)
+            answer = leqi_assistant.get_answer(session_id)
+            if answer:
+                logging.info(answer)
+                output = answer.value
+                break
 
-        retry += 1
-        if retry > 59:
-            break
+            retry += 1
+            if retry > 59:
+                break
 
     logging.info(f"{session_id}: {msg.operatorOpenid} --> {output} ]")
     data = {"content": output,
@@ -68,10 +73,15 @@ def chat_doc(leqi_assistant, yzj_token, msg: RobotMsg, session_id):
 
 
 def add_qa(leqi_assistant, yzj_token, msg: RobotMsg, question, answer):
-    leqi_assistant.add_faq(question, answer, msg.operatorName)
-    logging.info(f"语料增加成功：{question} --> {answer}")
+    output = "语料增加成功"
+    try:
+        leqi_assistant.add_faq(question, answer, msg.operatorName)
+    except Exception as e:
+        logging.error(e)
+        output = "语料增加失败"
+    logging.info(f"{output}：{question} --> {answer}")
 
-    data = {"content": "增加语料成功",
+    data = {"content": output,
             "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
     requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
 

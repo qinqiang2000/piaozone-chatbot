@@ -13,3 +13,4 @@ starlette
 python-multipart
 bs4
 mammoth
+httpcore

@@ -312,3 +312,50 @@ def upload_docs_2_assistant_with_config(assistant_id, yuque_relate_and_faq_slug)
         logging.info(f"同步库{repo}目录id为{toc_uuid}的所有文件到assistant {assistant_id}")
         tocs.extend(get_tocs_from_parent(repo, toc_uuid))
     upload_docs_2_assistant(get_doc_from_tocs(tocs), assistant_id)
+
+
+def add_piaozone_question(repo, doc_slug, question, answer):
+    """
+    向bill-operate-report服务请求新增新词条,同步数据
+    :param repo:
+    :param doc_slug:
+    :param question:
+    :param answer:
+    :return:
+    """
+    # 获取access_token
+    access_token = get_piaozone_access_token()
+    url = PIAOZONE_ADD_SOBOT_DOC_URL + access_token
+    data = json.dumps({
+        "repo": repo,
+        "docSlug": doc_slug,
+        "question": question,
+        "answer": answer,
+        "creator": "system-from-gpt-assistant"
+    })
+    if access_token:
+        # 请求接口/portal/m19/customer-service/sobot-doc/with-yuque-slug
+        response = requests.post(url=url, headers={'Content-Type': 'application/json'}, data=data)
+        if response.status_code != 200:
+            logging.error(f"请求运营管理平台添加词条{url}失败,返回码为{response.status_code}")
+            raise Exception("请求运营管理平台添加词条失败")
+
+        resp = json.loads(response.text)
+        if resp["errcode"] != "0000":
+            logging.error(f"请求运营管理平台token{url}失败,返回内容为{resp}")
+            raise Exception(f"请求运营管理平台添加词条失败:{resp['description']}")
+
+
+def get_piaozone_access_token():
+    # 获取access_token
+    url = PIAOZONE_TOKEN_URL
+    token_resp = requests.post(url=url, data=PIAOZONE_TOKEN_BODY)
+
+    if token_resp.status_code != 200:
+        logging.error(f"请求运营管理平台token{url}失败,返回码为{token_resp.status_code}")
+        return ""
+    resp = json.loads(token_resp.text)
+    if resp["errcode"] != "0000":
+        logging.error(f"请求运营管理平台token{url}失败,返回内容为{resp}")
+        return ""
+    return resp["data"]["tokenInfo"]["access_token"]

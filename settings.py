@@ -33,3 +33,7 @@ SINGLE_DOC_END = "========================================《{}》结尾，字�
 CONFIG_PATH = "./config.json"
 YZJ_ASSISTANT_RELATE_PATH = "./yzj_assistant_relate.json"
 FAQ_DOC_END = "**该文档由系统自动生成，文档每天都会覆盖更新，禁止在此编辑。若想变更内容，请移步**[**https://tax-test.piaozone.com/operation-monitor/public/no-login/sobot-docs**](https://tax-test.piaozone.com/operation-monitor/public/no-login/sobot-docs)**操作。**"
+
+PIAOZONE_TOKEN_URL = "https://api-dev.piaozone.com/test/base/exception/login/token"
+PIAOZONE_TOKEN_BODY = "U5/yFNQySPUsjrHqSDUFl58fJ7OxHT8W4KWJqK4tLd/ze1/IIFtmActgeM8VxT4uAUn4cW75sKLbaLXPOMFYTVQ+XJDmwosnJ+qsangGMujLo2S3zQqQ/AU8TUd7qgrdYdEKKBLoTIXeCoBA3jjH4u9h+PvFcwfQuSgJbmKwomc="
+PIAOZONE_ADD_SOBOT_DOC_URL = "https://api-dev.piaozone.com/test/portal/m19/customer-service/sobot-doc/with-yuque-slug?access_token="

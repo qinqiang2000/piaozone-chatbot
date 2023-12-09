@@ -115,8 +115,10 @@ def add_one_row(assistant_id, question, answer):
     repo_and_toc_uuid = next(iter(yuque_relate_and_faq_slug))
     repo = repo_and_toc_uuid.split("/")[0]
     faq_slugs = yuque_relate_and_faq_slug[repo_and_toc_uuid]
+    # 将新增问答同步到faq_slugs数组的第一个slug中
     yuque_doc = yuque_utils.get_yuque_doc(repo, faq_slugs[0])
 
+    # 去掉文档末尾的说明
     md_content = yuque_doc["body"].replace(settings.FAQ_DOC_END, "")
     # 将 Markdown 表格内容转换为 StringIO 对象
     md_table = StringIO(md_content)
@@ -138,5 +140,10 @@ def add_one_row(assistant_id, question, answer):
     md_table_modified = df.to_markdown(index=False)
     md_table_modified += "\n" + settings.FAQ_DOC_END
     yuque_utils.update_yuque_doc(repo, yuque_doc, md_table_modified, "markdown")
+    # 同步到运营管理平台
+    try:
+        yuque_utils.add_piaozone_question(repo, faq_slugs[0], question, answer)
+    except Exception as e:
+        logging.error(f"添加faq词条{question} {answer}时，同步到运营管理平台{repo}/{faq_slugs[0]}出错。原因：{e}")
     logging.info("Markdown 文件已更新并保存。")
     return md_table_modified

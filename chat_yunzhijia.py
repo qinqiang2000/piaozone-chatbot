@@ -44,9 +44,10 @@ async def shutdown_event():
     logging.info("定时任务关闭")
 
 
-def chat_doc(leqi_assistant, yzj_token, msg: RobotMsg, session_id):
+def chat_doc(leqi_assistant, yzj_token, msg: RobotMsg):
     has_time_out = False
     output = "抱歉，大模型响应超时，请稍后再试"
+    session_id = msg.robotId + "~" + msg.operatorOpenid
     try:
         leqi_assistant.chat(session_id, msg.content)
     except httpcore.ConnectTimeout:
@@ -89,12 +90,13 @@ def add_qa(leqi_assistant, yzj_token, msg: RobotMsg, question, answer):
 @app.post("/chat")
 async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, yzj_token: str = Query(...)):
     session_id = request.headers.get("sessionId")
+    msg.sessionId = session_id
     if not yzj_token:
         logging.error("云之家群聊机器人链接没有配置参数yzj_token")
         return
     # 取msg.content第一个空格之后的消息
     msg.content = " ".join(msg.content.split()[1:])
-    logging.info(f"[{session_id}]: {msg}")
+    logging.info(f"[{msg.robotId + '~' + msg.operatorOpenid}]: {msg}")
     gpt_assistant_id = get_assistant_id_by_yzj_token(yzj_token)
     leqi_assistant = Assistant(gpt_assistant_id)
     if msg.content == "请同步最新文档到Assistant":
@@ -108,7 +110,7 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, yzj_t
         if question and answer:
             task.add_task(add_qa, leqi_assistant, yzj_token, msg, question[0], answer[0])
         else:
-            task.add_task(chat_doc, leqi_assistant, yzj_token, msg, session_id)
+            task.add_task(chat_doc, leqi_assistant, yzj_token, msg)
 
     return {
         "success": True,

@@ -16,7 +16,7 @@ class Assistant:
         self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.assistant_id = assistant_id
         self.run = None
-        self.thread_map = {}  # 不能指定id创建thread，所以需要一个map来存储session id和thread_id的映射关系
+        self.thread_map = {}  # 不能指定id创建thread，所以需要一个map来存储session id(robot id + "~" + operatorOpenId)和thread_id的映射关系
 
     def add_faq(self, question, answer, submitter):
         logging.info(f"{submitter} 增加新语料：{question} --> {answer}")
@@ -38,6 +38,11 @@ class Assistant:
             logging.info(f"增加新文件：{assistant_file}")
 
     def chat(self, session_id, content):
+        """
+        :param session_id: 由{robot_id}~{operatorOpenId}组成
+        :param content:
+        :return:
+        """
         # 如果session_id不存在，创建一个新的thread;
         if session_id not in self.thread_map:
             thread = self.client.beta.threads.create()
@@ -57,6 +62,10 @@ class Assistant:
         )
 
     def get_answer(self, session_id):
+        """
+        :param session_id:由{robot_id}~{operatorOpenId}组成
+        :return:
+        """
         thread_id = self.thread_map.get(session_id)
         if not thread_id:
             return None

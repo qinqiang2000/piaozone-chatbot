@@ -96,10 +96,16 @@ def get_doc_from_tocs(tocs):
             child_tocs = get_tocs_from_parent(toc["repo"], toc["uuid"], toc["top_uuid"])
             docs.extend(get_doc_from_tocs(child_tocs))
         elif toc["type"] == "DOC":
-            doc = get_yuque_doc(toc["repo"], toc["slug"])
-            doc["top_uuid"] = toc["top_uuid"]
-            doc["repo"] = toc["repo"]
-            docs.append(doc)
+            child_tocs = get_tocs_from_parent(toc["repo"], toc["uuid"], toc["top_uuid"])
+            if child_tocs:
+                # 文档类型的节点有子文档，需要忽略该文档
+                docs.extend(get_doc_from_tocs(child_tocs))
+            else:
+                # 文档类型的节点没有子文档，就是单纯的一个文档
+                doc = get_yuque_doc(toc["repo"], toc["slug"])
+                doc["top_uuid"] = toc["top_uuid"]
+                doc["repo"] = toc["repo"]
+                docs.append(doc)
     return docs
 
 

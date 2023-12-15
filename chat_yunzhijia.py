@@ -71,6 +71,8 @@ def chat_doc(leqi_assistant, yzj_token, msg: RobotMsg):
     img_urls = parse_img_urls(output)
     # 去掉html标签
     output = remove_html_tags(output)
+    if img_urls:
+        output += "\n具体图片可参考下面一条消息所示："
     data = {"content": output,
             "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
     requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)

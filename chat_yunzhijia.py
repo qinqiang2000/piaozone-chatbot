@@ -88,7 +88,7 @@ def send_yzj_card_notice(yzj_token, img_urls, operator_open_id):
     if not img_urls:
         return
     img_num = len(img_urls)
-    card_num = img_num / MAX_IMG_NUM_IN_CARD_NOTICE
+    card_num = int(img_num / MAX_IMG_NUM_IN_CARD_NOTICE)
     # 图片数量不能被MAX_IMG_NUM_IN_CARD_NOTICE整除，则需要卡片数+1
     if img_num % MAX_IMG_NUM_IN_CARD_NOTICE != 0:
         card_num += 1

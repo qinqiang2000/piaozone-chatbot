@@ -59,22 +59,24 @@ def chat_doc(leqi_assistant, yzj_token, msg: RobotMsg):
             answer = leqi_assistant.get_answer(session_id)
             if answer:
                 logging.info(answer)
-                # 去掉html标签
-                output = remove_html_tags(answer.value)
-                # 截取图片url
-                img_urls = parse_img_urls(answer.value)
-                if img_urls:
-                    send_yzj_card_notice(yzj_token, img_urls, msg.operatorOpenid)
+                output = answer.value
+                break
 
             retry += 1
             if retry > 59:
                 break
 
     logging.info(f"{session_id}: {msg.operatorOpenid} --> {output} ]")
+    # 先截取图片url
+    img_urls = parse_img_urls(output)
+    # 去掉html标签
+    output = remove_html_tags(output)
     data = {"content": output,
             "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
-
     requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
+
+    if img_urls:
+        send_yzj_card_notice(yzj_token, img_urls, msg.operatorOpenid)
 
 
 def send_yzj_card_notice(yzj_token, img_urls, operator_open_id):

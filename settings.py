@@ -19,6 +19,8 @@ API_TYPE = os.getenv('API_TYPE')
 
 # 云之家通知地址
 YUNZHIJIA_NOTIFY_URL = "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken={}"
+MAX_IMG_NUM_IN_CARD_NOTICE = 5
+CARD_NOTICE_TEMPLATE_ID = "64d08cb4e4b07ba2b112b395"
 
 # 机器人助手id
 LEQI_ASSISTANT_ID = 'asst_G5t60WEtbD9ygU5n2Ol727N6'

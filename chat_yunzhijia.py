@@ -1,18 +1,18 @@
-import re
 import time
-import yuque_utils
-import requests
-import httpcore
-from fastapi import FastAPI, Request, Query
 from typing import Optional
-from starlette.background import BackgroundTasks
 
-from common_utils import *
-from assistant import Assistant
-from settings import *
-from pydantic import BaseModel
+import httpcore
+import requests
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
+from fastapi import FastAPI, Request, Query
+from pydantic import BaseModel
+from starlette.background import BackgroundTasks
+
+import yuque_utils
+from assistant import Assistant
+from common_utils import *
+from settings import *
 
 app = FastAPI()
 scheduler = AsyncIOScheduler()
@@ -59,8 +59,12 @@ def chat_doc(leqi_assistant, yzj_token, msg: RobotMsg):
             answer = leqi_assistant.get_answer(session_id)
             if answer:
                 logging.info(answer)
-                output = answer.value
-                break
+                # 去掉html标签
+                output = remove_html_tags(answer.value)
+                # 截取图片url
+                img_urls = parse_img_urls(answer.value)
+                if img_urls:
+                    send_yzj_card_notice(yzj_token, img_urls, msg.operatorOpenid)
 
             retry += 1
             if retry > 59:
@@ -71,6 +75,53 @@ def chat_doc(leqi_assistant, yzj_token, msg: RobotMsg):
             "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
 
     requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
+
+
+def send_yzj_card_notice(yzj_token, img_urls, operator_open_id):
+    """
+    发送云之家图片卡片消息
+    :param yzj_token:
+    :param img_urls:
+    :param operator_open_id:
+    :return:
+    """
+    if not img_urls:
+        return
+    img_num = len(img_urls)
+    card_num = img_num / MAX_IMG_NUM_IN_CARD_NOTICE + 1
+    for i in range(card_num):
+        data_content = gen_card_notice_data_content(img_urls, img_num, card_num, i)
+        # 卡片填充信息
+        param = {"baseInfo": {"templateId": CARD_NOTICE_TEMPLATE_ID, "dataContent": str(data_content)}}
+        # 当需要at人员时传入
+        notify_params = [{"type": "openIds", "values": [operator_open_id]}]
+        url = YUNZHIJIA_NOTIFY_URL.format(yzj_token)
+        logging.info(f"请求云之家发送图片信息以卡片通知消息形式,地址:{url} 图片内容{img_urls}")
+        resp = requests.post(url, json={"msgType": 2, "param": param, "notifyParams": notify_params},
+                             headers={'Content-Type': 'application/json'})
+        logging.info(f"请求云之家发送图片信息以卡片通知消息形式结束,返回消息：{resp}")
+
+
+def gen_card_notice_data_content(img_urls, img_num, card_num, index):
+    """
+    根据图片构建卡片消息data_content
+    :param img_urls:
+    :param img_num:
+    :param card_num:
+    :param index:
+    :return:
+    """
+    data_content = {}
+    img_num_in_card = MAX_IMG_NUM_IN_CARD_NOTICE
+    if index == card_num - 1:
+        img_num_in_card = img_num % MAX_IMG_NUM_IN_CARD_NOTICE
+    for j in range(img_num_in_card):
+        img_url = img_urls[j + index * MAX_IMG_NUM_IN_CARD_NOTICE]
+        if j == 0:
+            data_content["bigImageUrl"] = img_url
+        else:
+            data_content[f"bigImage{j}Url"] = img_url
+    return data_content
 
 
 def add_qa(leqi_assistant, yzj_token, msg: RobotMsg, question, answer):

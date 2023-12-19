@@ -1,3 +1,4 @@
+import os.path
 import time
 from typing import Optional
 
@@ -5,7 +6,8 @@ import httpcore
 import requests
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from fastapi import FastAPI, Request, Query
+from fastapi import FastAPI, Request, Query, File, UploadFile
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.background import BackgroundTasks
 
@@ -174,6 +176,24 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, yzj_t
         "success": True,
         "data": {"type": 2, "content": "请稍等（云之家不能streaming push）"}
     }
+
+
+@app.post("/convert-excel-into-mds")
+async def convert_excel_into_mds(file: UploadFile = File(...)):
+    if is_xlsx_file(file.filename):
+        # 保存上传的文件到本地
+        with open(file.filename, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        zip_file = excel_sheets_to_markdown_and_zip(file.filename)
+        # 返回处理后的文件
+        return FileResponse(path=zip_file, filename=os.path.basename(zip_file), media_type='application/octet-stream')
+    else:
+        return "只支持处理excel xlsx文件"
+
+
+@app.get("/excel-convertor")
+async def excel_convertor():
+    return FileResponse("html/excel-convertor.html")
 
 
 if __name__ == "__main__":

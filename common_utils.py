@@ -4,6 +4,11 @@ import re
 from settings import CONFIG_PATH, YZJ_ASSISTANT_RELATE_PATH
 import json
 from bs4 import BeautifulSoup
+import pandas as pd
+import openpyxl
+import os
+import zipfile
+import shutil
 
 
 def get_assistant_id_by_yzj_token(yzj_token):
@@ -62,3 +67,73 @@ def parse_img_urls(text):
         "http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+\.(?:jpg|jpeg|png|gif)",
         text)
     return img_urls
+
+
+def zip_folder(folder_path):
+    """
+    创建一个ZipFile对象，并指定要输出的ZIP文件
+    :param folder_path:
+    :return: 最终zip文件绝对路径
+    """
+    # 以文件夹名作为输出zip文件名
+    output_zip_file = folder_path + ".zip"
+    with zipfile.ZipFile(output_zip_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # 遍历目录树并添加文件到zip
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                # 创建文件的完整路径
+                full_path = os.path.join(root, file)
+                # 计算在ZIP文件中的路径
+                relative_path = os.path.relpath(full_path, folder_path)
+                # 添加文件到zip
+                zipf.write(full_path, relative_path)
+
+    logging.info(f'文件夹 "{folder_path}" 已被压缩为 "{output_zip_file}"')
+    # 删除原始文件夹
+    shutil.rmtree(folder_path)
+    return output_zip_file
+
+
+def excel_sheets_to_markdown_and_zip(excel_file_path):
+    """
+    将指定excel文件的所有sheet(不包括隐藏的)转化为以【excel文件名-sheet名】为名称的markdown文件，并压缩为一个zip包
+    :param excel_file_path:
+    :return: 结果zip的绝对路径
+    """
+    # 读取Excel文件中所有的工作表
+    xls = pd.ExcelFile(excel_file_path)
+    # 使用openpyxl加载Excel文件
+    workbook = openpyxl.load_workbook(excel_file_path)
+    # 以excel文件名为输出文件夹
+    output_folder = os.path.splitext(os.path.abspath(excel_file_path))[0]
+    # 检查输出文件夹是否存在，如果不存在，则创建
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+
+    # 遍历所有工作表
+    for sheet_name in workbook.sheetnames:
+        # 获取工作表对象
+        worksheet = workbook[sheet_name]
+        # 检查工作表是否隐藏
+        if worksheet.sheet_state == 'visible':
+            # 读取工作表
+            df = pd.read_excel(excel_file_path, sheet_name=sheet_name, na_filter=False)
+            # 检查并替换以"Unnamed"开头的列名
+            df.columns = [col if not col.startswith('Unnamed') else '' for col in df.columns]
+            # 将DataFrame转换为Markdown格式的字符串
+            markdown_str = df.to_markdown(index=False)
+            excel_file_name = os.path.splitext(os.path.basename(excel_file_path))[0]
+            # Markdown文件的路径
+            markdown_file_path = os.path.join(output_folder, f'{excel_file_name + "-" + sheet_name}.md')
+            # 将Markdown字符串写入文件
+            with open(markdown_file_path, 'w', encoding='utf-8') as file:
+                file.write(markdown_str)
+            logging.info(f'Markdown文件已生成：{markdown_file_path}')
+    return zip_folder(output_folder)
+
+
+def is_xlsx_file(file_path):
+    # 获取文件扩展名
+    _, ext = os.path.splitext(file_path)
+    # 检查扩展名是否为Excel格式
+    return ext.lower() == '.xlsx'

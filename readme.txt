@@ -21,6 +21,7 @@
 }
 取其uuid即可。将上述产品资料库id：dn5ehb，和toc的uuid：tATIz14vsbS6c-kw，以及开发者在GPT Assistant添加对应的Assistant id：asst_G5t60WEtbD9ygU5n2Ol727N6
 就可以组成下面config.json的配置。faq.md的uuid数组，在同步语雀文档到assistant后会自动填充。
+(在云之家艾特机器人 发送“请同步最新文档到Assistant”命令即可要求同步对应机器人的语雀语料)
 
 
 配置文件说明：

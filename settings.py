@@ -19,7 +19,9 @@ API_TYPE = os.getenv('API_TYPE')
 
 # 云之家通知地址
 YUNZHIJIA_NOTIFY_URL = "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken={}"
+# 云之家每张卡片消息最大图片数
 MAX_IMG_NUM_IN_CARD_NOTICE = 5
+# 云之家卡片消息模板id
 CARD_NOTICE_TEMPLATE_ID = "64d08cb4e4b07ba2b112b395"
 
 # 机器人助手id
@@ -29,6 +31,7 @@ YUQUE_AUTH_TOKEN = "aAzViMlNLUtykug7vU5EnmQKvYn9DZGQICFmL3mB"
 YUQUE_NAMESPACE = "nbklz3"
 YUQUE_BASE_URL = "https://jdpiaozone.yuque.com/api/v2"
 YUQUE_REQUEST_AGENT = "piaozone"
+# assistant file最多文件数-1(要多留一个给faq.md)
 ASSISTANT_FILE_NUM_LIMIT = 9
 SINGLE_DOC_END = "========================================《{}》结尾，字数：{}============================================="
 

@@ -179,14 +179,17 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, yzj_t
 
 
 @app.post("/convert-excel-into-mds")
-async def convert_excel_into_mds(file: UploadFile = File(...)):
+async def convert_excel_into_mds(task: BackgroundTasks, file: UploadFile = File(...)):
     if is_xlsx_file(file.filename):
         # 保存上传的文件到本地
         with open(file.filename, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         zip_file = excel_sheets_to_markdown_and_zip(file.filename)
         # 返回处理后的文件
-        return FileResponse(path=zip_file, filename=os.path.basename(zip_file), media_type='application/octet-stream')
+        response = FileResponse(path=zip_file, filename=os.path.basename(zip_file),
+                                media_type='application/octet-stream')
+        task.add_task(os.remove, zip_file)
+        return response
     else:
         return "只支持处理excel xlsx文件"
 

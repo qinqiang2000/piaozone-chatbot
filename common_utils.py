@@ -100,8 +100,6 @@ def excel_sheets_to_markdown_and_zip(excel_file_path):
     :param excel_file_path:
     :return: 结果zip的绝对路径
     """
-    # 读取Excel文件中所有的工作表
-    xls = pd.ExcelFile(excel_file_path)
     # 使用openpyxl加载Excel文件
     workbook = openpyxl.load_workbook(excel_file_path)
     # 以excel文件名为输出文件夹
@@ -129,6 +127,8 @@ def excel_sheets_to_markdown_and_zip(excel_file_path):
             with open(markdown_file_path, 'w', encoding='utf-8') as file:
                 file.write(markdown_str)
             logging.info(f'Markdown文件已生成：{markdown_file_path}')
+    # 删除excel文件
+    os.remove(excel_file_path)
     return zip_folder(output_folder)
 
 

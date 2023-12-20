@@ -3,7 +3,7 @@
 如乐企找到的是
 {
 	'uuid': 'tATIz14vsbS6c-kw',
-	'type': 'TITLE',
+	'type': 'TITLE', #特定分组就必须是TITLE，可观察上述接口返回的其他文档的parent_uuid是否该TITLE的uuid，就可以100%确认。
 	'title': '乐企',
 	'url': '',
 	'slug': '#',

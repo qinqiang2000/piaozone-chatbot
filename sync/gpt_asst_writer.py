@@ -4,7 +4,7 @@ import common_utils as utils
 from config.settings import *
 
 client = OpenAI()
-tmp_dir = os.path.join(os.path.dirname(__file__), "./tmp")
+tmp_dir = os.path.join(os.path.dirname(__file__), "../tmp")
 
 
 # 同步docs到gpt assistant的文件

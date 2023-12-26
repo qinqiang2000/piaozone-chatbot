@@ -1,7 +1,7 @@
 import requests
 
 from assistant import Assistant
-from settings import *
+from config.settings import *
 from common_utils import *
 
 
@@ -137,12 +137,18 @@ def operate_faq_doc(assistant, faq_docs):
     :param faq_docs: 正常应该只有一个
     :return:
     """
+
+    faq_path = os.path.join(assistant.assistant_id, "../data/faq.md")
+
     if len(faq_docs) == 0:
         logging.info("语雀文档中没有符合faq规定的相关文档，请确定")
         return
-    last_faq_file_id = get_config(assistant.assistant_id, "last_faq_file_id")
-    if last_faq_file_id:
-        assistant.del_file(last_faq_file_id)
+
+    # last_faq_file_id = get_config(assistant.assistant_id, "last_faq_file_id")
+    # if last_faq_file_id:
+    #     assistant.del_file(last_faq_file_id)
+#     logging.info(f"删除上一次的faq文件：{last_faq_file_id}")
+
     faq_bodies = ""
     yuque_relate_and_faq_slug = {}
     for faq_doc in faq_docs:
@@ -151,12 +157,12 @@ def operate_faq_doc(assistant, faq_docs):
             yuque_relate_and_faq_slug[key] = []
         faq_bodies += faq_doc["body"] + "\n"
         yuque_relate_and_faq_slug[key].append(faq_doc["slug"])
-    with open("faq.md", "w", encoding="utf-8") as file:
+    with open(faq_path, "w", encoding="utf-8") as file:
         file.write(faq_bodies)
     # 上传faq文件
-    assistant_file = assistant.create_file("faq.md")
+    assistant_file = assistant.create_file(faq_path)
     # 删除临时faq文件
-    os.remove("faq.md")
+    # os.remove(faq_path)
     # 存储本次语雀关联数据
     save_config(assistant.assistant_id, "yuque_relate_and_faq_slug", yuque_relate_and_faq_slug)
     # 存储本次faq文件id
@@ -174,19 +180,19 @@ def operate_common_docs(assistant, html_docs):
         logging.info("语雀文档中没有复合规定的相关文档，请确定")
         return
     operated_files = distribute_common_files(html_docs)
-    last_common_file_ids = get_config(assistant.assistant_id, "last_common_file_ids")
+
     # 删除旧文件
-    for common_file_id in last_common_file_ids:
-        assistant.del_file(common_file_id)
-    common_file_ids = []
+    # last_common_file_ids = get_config(assistant.assistant_id, "last_common_file_ids")
+    # for common_file_id in last_common_file_ids:
+    #     assistant.del_file(common_file_id)
+
     # 新增文件
     for operated_file in operated_files:
-        assistant_file = assistant.create_file(operated_file.name)
-        common_file_ids.append(assistant_file.id)
+        assistant.create_file(operated_file.name)
         # 删除临时文件
-        os.remove(operated_file.name)
+        # os.remove(operated_file.name)
     # 存储本次文件id
-    save_config(assistant.assistant_id, "last_common_file_ids", common_file_ids)
+    # save_config(assistant.assistant_id, "last_common_file_ids", common_file_ids)
 
 
 def distribute_common_files(docs):
@@ -274,9 +280,18 @@ def add_index_in_doc_start(file_buckets, doc_buckets):
         os.remove(file_buckets[index].name + ".tmp")
 
 
+# 从语雀获取文档
+def get_docs(repo=None, toc_uuid=None):
+    if repo and toc_uuid:
+        logging.info(f"获取库{repo}目录id为{toc_uuid}的所有文件")
+        return get_doc_from_tocs(get_tocs_from_parent(repo, toc_uuid))
+
+    return []
+
+
 def sync_yuque_docs_2_assistant(repo=None, toc_uuid=None, assistant_id=None, notify_id=None, yzj_token=None):
     """
-    同步语雀文档到assistant，三个参数都传则表示手动指定同步;
+    同步语雀文档到assistant；repo and toc_uuid and assistant_id三个参数都传则表示手动指定同步;
     :param notify_id: 云之家通知id
     :param yzj_token
     :param repo:
@@ -291,7 +306,7 @@ def sync_yuque_docs_2_assistant(repo=None, toc_uuid=None, assistant_id=None, not
         return
 
     # 定时任务同步
-    config = get_config(assistant_id)
+    config = get_config(assistant_id=assistant_id)
     if assistant_id:
         # assistant_id不为空，只处理assistant_id对应的配置
         yuque_relate_and_faq_slug = config["yuque_relate_and_faq_slug"]
@@ -365,3 +380,9 @@ def get_piaozone_access_token():
         logging.error(f"请求运营管理平台token{url}失败,返回内容为{resp}")
         return ""
     return resp["data"]["tokenInfo"]["access_token"]
+
+
+if __name__ == "__main__":
+    tocs = list_yuque_toc("dn5ehb")
+    print(tocs)
+    print(list(map(lambda x: x['uuid'], tocs)))

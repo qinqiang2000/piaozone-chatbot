@@ -1,0 +1,6 @@
+dn5ehb: # 语雀知识库的唯一标识
+  乐企:  # 语雀分的名字；我们以分组为单位进行AI知识库的管理
+    gptAssistantId: "asst_G5t60WEtbD9ygU5n2Ol727N6"
+    yzj_token:  # 云之家的群token，用于区别不同的群
+      - "d29fe265a9594811881e86b7e3d8a1e7"
+      - "123"

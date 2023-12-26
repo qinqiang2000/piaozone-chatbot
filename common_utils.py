@@ -1,7 +1,7 @@
 import logging
 import re
 
-from settings import CONFIG_PATH, YZJ_ASSISTANT_RELATE_PATH
+from config.settings import CONFIG_PATH, YZJ_ASSISTANT_RELATE_PATH
 import json
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -9,11 +9,39 @@ import openpyxl
 import os
 import zipfile
 import shutil
+import yaml
 
 
+config_path = "config/config_yq.yml"
+# 工程路径 + config/config_yq.yml
+config_path = os.path.join(os.path.dirname(__file__), config_path)
+config_data = yaml.load(open(config_path, 'rb'), Loader=yaml.Loader)
+
+
+# 从云之家群token获取assistant_id
 def get_assistant_id_by_yzj_token(yzj_token):
-    with open(YZJ_ASSISTANT_RELATE_PATH, "r", encoding="utf-8") as file:
-        return json.load(file)[yzj_token]
+    for repo, dirs in config_data.items():
+        for info in dirs.values():
+            if yzj_token in info['yzj_token']:
+                return info['gptAssistantId']
+    return None
+
+
+# 从云之家群token获取语雀知识库id、分组title和assistant_id
+def get_info_by_yzj_token(yzj_token):
+    repo, toc_title = get_yq_info_by_yzj_token(yzj_token)
+    asst_id = get_assistant_id_by_yzj_token(yzj_token)
+
+    return repo, toc_title, asst_id
+
+
+# 从云之家群token获取语雀知识库id和分组id
+def get_yq_info_by_yzj_token(yzj_token):
+    for repo, dirs in config_data.items():
+        for toc_title, info in dirs.items():
+            if yzj_token in info['yzj_token']:
+                return repo, toc_title
+    return None, None
 
 
 def get_config(assistant_id=None, key=None):

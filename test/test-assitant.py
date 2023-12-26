@@ -1,11 +1,10 @@
 import time
 
 from assistant import Assistant
-from dotenv import load_dotenv
 from openai import OpenAI
 import pandas as pd
 from io import StringIO
-from settings import *
+from config.settings import *
 
 load_dotenv(override=True)
 

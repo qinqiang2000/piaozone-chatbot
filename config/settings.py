@@ -32,11 +32,11 @@ YUQUE_NAMESPACE = "nbklz3"
 YUQUE_BASE_URL = "https://jdpiaozone.yuque.com/api/v2"
 YUQUE_REQUEST_AGENT = "piaozone"
 # assistant file最多文件数-1(要多留一个给faq.md)
-ASSISTANT_FILE_NUM_LIMIT = 9
+ASSISTANT_FILE_NUM_LIMIT = 19
 SINGLE_DOC_END = "========================================《{}》结尾，字数：{}============================================="
 
-CONFIG_PATH = "./config.json"
-YZJ_ASSISTANT_RELATE_PATH = "./yzj_assistant_relate.json"
+CONFIG_PATH = "config.json"
+YZJ_ASSISTANT_RELATE_PATH = "yzj_assistant_relate.json"
 FAQ_DOC_END = "**该文档由系统自动生成，文档每天都会覆盖更新，禁止在此编辑。若想变更内容，请移步**[**https://tax-test.piaozone.com/operation-monitor/public/no-login/sobot-docs**](https://tax-test.piaozone.com/operation-monitor/public/no-login/sobot-docs)**操作。**"
 
 PIAOZONE_TOKEN_URL = "https://api-dev.piaozone.com/test/base/exception/login/token"

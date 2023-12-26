@@ -11,13 +11,14 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.background import BackgroundTasks
 
-import yuque_utils
+from sync import yuque_utils
 from assistant import Assistant
 from common_utils import *
-from settings import *
+from config.settings import *
 
 app = FastAPI()
 scheduler = AsyncIOScheduler()
+assistants = {}
 
 
 class RobotMsg(BaseModel):
@@ -32,11 +33,17 @@ class RobotMsg(BaseModel):
     sessionId: Optional[str] = None
 
 
+def get_assistant(id):
+    if id not in assistants:
+        assistants[id] = Assistant(id)
+    return assistants[id]
+
+
 @app.on_event("startup")
 async def startup_event():
     # 启动定时任务：同步语雀文档到gpt assistant
     scheduler.add_job(yuque_utils.sync_yuque_docs_2_assistant, CronTrigger(hour=2))
-    scheduler.start()
+    # scheduler.start()
     logging.info("定时任务启动")
 
 
@@ -133,16 +140,23 @@ def gen_card_notice_data_content(img_urls, img_num, card_num, index):
     return data_content
 
 
-def add_qa(leqi_assistant, yzj_token, msg: RobotMsg, question, answer):
+def add_qa(assistant, yzj_token, msg: RobotMsg, question, answer):
     output = "语料增加成功"
     try:
-        leqi_assistant.add_faq(question, answer, msg.operatorName)
+        assistant.add_faq(question, answer, msg.operatorName)
     except Exception as e:
         logging.error(e)
         output = "语料增加失败"
     logging.info(f"{output}：{question} --> {answer}")
 
     data = {"content": output,
+            "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
+    requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
+
+
+def sync_gpt_assistant(yzj_token, msg: RobotMsg):
+
+    data = {"content": "同步最新文档至Assistant成功",
             "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
     requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
 
@@ -154,27 +168,31 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, yzj_t
     if not yzj_token:
         logging.error("云之家群聊机器人链接没有配置参数yzj_token")
         return
+
     # 取msg.content第一个空格之后的消息
     msg.content = " ".join(msg.content.split()[1:])
+    # 去除msg.content中的前后空格
+    msg.content = msg.content.strip()
     logging.info(f"[{msg.robotId + '~' + msg.operatorOpenid}]: {msg}")
+
     gpt_assistant_id = get_assistant_id_by_yzj_token(yzj_token)
-    leqi_assistant = Assistant(gpt_assistant_id)
-    if msg.content == "请同步最新文档到Assistant":
-        task.add_task(lambda:
-                      yuque_utils.sync_yuque_docs_2_assistant(assistant_id=gpt_assistant_id,
-                                                              notify_id=msg.operatorOpenid, yzj_token=yzj_token))
+    assistant = get_assistant(gpt_assistant_id)
+
+    # msg.content等于sync gpt时(不分大小写），同步最新文档至Assistant
+    if msg.content.lower() == "sync gpt":
+        task.add_task(sync_gpt_assistant, yzj_token, msg)
     elif msg.content:
         # 增加语料：正则表达式匹配 Q[] 和 A[] 内的内容，如果匹配，则说明是增加语料的请求
         question = re.findall(r'Q\[(.*?)\]', msg.content)
         answer = re.findall(r'A\[(.*?)\]', msg.content)
         if question and answer:
-            task.add_task(add_qa, leqi_assistant, yzj_token, msg, question[0], answer[0])
+            task.add_task(add_qa, assistant, yzj_token, msg, question[0], answer[0])
         else:
-            task.add_task(chat_doc, leqi_assistant, yzj_token, msg)
+            task.add_task(chat_doc, assistant, yzj_token, msg)
 
     return {
         "success": True,
-        "data": {"type": 2, "content": "请稍等（云之家不能streaming push）"}
+        "data": {"type": 2, "content": "请稍等..."}
     }
 
 

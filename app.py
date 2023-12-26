@@ -15,6 +15,7 @@ from sync import yuque_utils
 from assistant import Assistant
 from common_utils import *
 from config.settings import *
+import sync.sync_flow as sf
 
 app = FastAPI()
 scheduler = AsyncIOScheduler()
@@ -155,8 +156,12 @@ def add_qa(assistant, yzj_token, msg: RobotMsg, question, answer):
 
 
 def sync_gpt_assistant(yzj_token, msg: RobotMsg):
+    success = "成功"
+    ret = sf.sync_gpt_by_yzj_flow(yzj_token)
+    if not ret:
+        success = "失败"
 
-    data = {"content": "同步最新文档至Assistant成功",
+    data = {"content": f"同步最新文档至Assistant{success}",
             "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
     requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
 

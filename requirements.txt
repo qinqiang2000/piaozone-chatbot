@@ -12,7 +12,5 @@ pydantic
 starlette
 python-multipart
 bs4
-mammoth
 httpcore
-pandas
-openpyxl
+pyyaml

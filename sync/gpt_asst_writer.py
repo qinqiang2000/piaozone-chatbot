@@ -148,7 +148,6 @@ def distribute_docs(docs, base_path="./tmp"):
         act_num_more_less = True
 
     file_buckets = []
-    single_doc_end_format = f"<br><b>{SINGLE_DOC_END}</b><br>"
     if act_num_more_less:
         for index in range(limit):
             # 语雀实际文档数小于assistant的文件上限数，一个语雀文档对应一个assistant文件即可
@@ -158,7 +157,6 @@ def distribute_docs(docs, base_path="./tmp"):
                 body = re.sub(r'<!doctype html>', f'<!DOCTYPE html><h1>{doc["title"]}</h1>', doc["body_html"],
                               count=1, flags=re.IGNORECASE)
                 file.write(utils.clear_css_code(body))
-                # file.write(single_doc_end_format.format(doc["title"], doc["word_count"]))
                 file_buckets.append(file)
     else:
         for index in range(limit):
@@ -187,8 +185,7 @@ def distribute_docs(docs, base_path="./tmp"):
                 body = re.sub(r'<!doctype html>', f'<!DOCTYPE html><h1>{doc["title"]}</h1>', doc["body_html"],
                               count=1, flags=re.IGNORECASE)
                 file.write(utils.clear_css_code(body))
-                file.write(single_doc_end_format.format(doc["title"], doc["word_count"]))
-        # add_index_in_doc_start(file_buckets, doc_buckets, base_path)
+        add_index_in_doc_start(file_buckets, doc_buckets, base_path)
 
     return file_buckets
 
@@ -202,13 +199,13 @@ def add_index_in_doc_start(file_buckets, doc_buckets, base_path="./tmp"):
         file_path = os.path.join(base_path, file_buckets[index].name)
         with open(file_path, "r", encoding="utf-8") as ori_file, \
                 open(os.path.join(base_path, ori_file.name[:-len(".tmp")]), "w", encoding="utf-8") as file:
-            file.write("<b>文件索引：</b><br>")
-            word_count_sum = 0
-            for doc in doc_buckets[index]:
-                file.write(f"《{doc['title']} 》开始位置（字数）：{word_count_sum} <br>")
-                extra_word_count = len(SINGLE_DOC_END.format(doc["title"], doc["word_count"]))
-                word_count_sum += doc["word_count"] + extra_word_count
-            file.write("<b>===================================索引分割============================================</b>")
+            # file.write("<b>文件索引：</b><br>")
+            # word_count_sum = 0
+            # for doc in doc_buckets[index]:
+            #     file.write(f"《{doc['title']} 》开始位置（字数）：{word_count_sum} <br>")
+            #     extra_word_count = len(SINGLE_DOC_END.format(doc["title"], doc["word_count"]))
+            #     word_count_sum += doc["word_count"] + extra_word_count
+            # file.write("<b>===================================索引分割============================================</b>")
             # 分块复制文件
             while True:
                 chunk = ori_file.read(chunk_size)

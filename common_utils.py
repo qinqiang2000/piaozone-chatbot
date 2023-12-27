@@ -79,11 +79,10 @@ def clear_css_code(html_content):
             del tag["id"]
         if "width" in tag.attrs:
             del tag["width"]
-
-    # 删除data-开头的所有属性
-    for tag in soup.find_all(attrs=re.compile("^data-")):
+        # 如果是以 data-开头的属性，则删除
         for attr in list(tag.attrs.keys()):
-            del tag[attr]
+            if attr.startswith("data-"):
+                del tag[attr]
 
     return soup.prettify()
 

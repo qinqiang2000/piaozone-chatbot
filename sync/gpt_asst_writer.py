@@ -2,7 +2,6 @@ import re
 
 from openai import OpenAI
 
-import common_utils as utils
 from config.settings import *
 
 client = OpenAI()
@@ -23,7 +22,7 @@ def sync_data(docs, id=None):
         faq_path = transform_faq(faq_docs, id)
 
         # 处理普通文档
-        html_path = sync_docs(html_docs, id)
+        html_path = transform_docs(html_docs, id)
 
         # 清空原有数据
         if empty_files(id) < 0:
@@ -53,7 +52,7 @@ def split_docs(docs):
         if (doc["format"] == "markdown" or doc["format"] == "lake") \
                 and "faq" in doc["title"].lower() and doc["body"]:
             faq_docs.append(doc)
-        elif doc["format"] == "lake" and doc["body_html"]:
+        elif doc["format"] == "lake" and doc["body"]:
             html_docs.append(doc)
     return html_docs, faq_docs
 
@@ -75,7 +74,7 @@ def transform_faq(faq_docs, assistant_id):
     return faq_path
 
 
-def sync_docs(html_docs, assistant_id):
+def transform_docs(html_docs, assistant_id):
     if len(html_docs) == 0:
         logging.warning("语雀文档中没有复合规定的相关文档，请检查")
         return
@@ -152,16 +151,15 @@ def distribute_docs(docs, base_path="./tmp"):
         for index in range(limit):
             # 语雀实际文档数小于assistant的文件上限数，一个语雀文档对应一个assistant文件即可
             doc = docs[index]
-            file_path = os.path.join(base_path, str(index + 1) + ".html")
+            file_path = os.path.join(base_path, str(index + 1) + ".md")
             with open(file_path, "w", encoding="utf-8") as file:
-                body = re.sub(r'<!doctype html>', f'<!DOCTYPE html><h1>{doc["title"]}</h1>', doc["body_html"],
-                              count=1, flags=re.IGNORECASE)
-                file.write(utils.clear_css_code(body))
+                body = transform_md_body(doc["body"], doc["title"])
+                file.write(body)
                 file_buckets.append(file)
     else:
         for index in range(limit):
             # 初始化ASSISTANT_FILE_NUM_LIMIT个文件
-            file_path = os.path.join(base_path, str(index + 1) + ".html.tmp")
+            file_path = os.path.join(base_path, str(index + 1) + ".md.tmp")
             with open(file_path, 'w', encoding="utf-8") as file:
                 file.write("")
                 file_buckets.append(file)
@@ -182,9 +180,8 @@ def distribute_docs(docs, base_path="./tmp"):
             doc_buckets[min_bucket_index].append(doc)
             file_path = os.path.join(base_path, file_buckets[min_bucket_index].name)
             with open(file_path, "a", encoding="utf-8") as file:
-                body = re.sub(r'<!doctype html>', f'<!DOCTYPE html><h1>{doc["title"]}</h1>', doc["body_html"],
-                              count=1, flags=re.IGNORECASE)
-                file.write(utils.clear_css_code(body))
+                body = transform_md_body(doc["body"], doc["title"])
+                file.write(body)
         add_index_in_doc_start(file_buckets, doc_buckets, base_path)
 
     return file_buckets
@@ -215,3 +212,13 @@ def add_index_in_doc_start(file_buckets, doc_buckets, base_path="./tmp"):
             file_buckets[index] = file
         # 删除旧.tmp结尾文件
         os.remove(os.path.join(base_path, file_buckets[index].name) + ".tmp")
+
+
+def transform_md_body(body, title):
+    body = re.sub("<a name=\".*\"></a>", "", body)  # 正则去除语雀导出的<a>标签
+    body = re.sub("\x00", "", body)  # 去除不可见字符\x00
+    body = re.sub("\x05", "", body)  # 去除不可见字符\x05
+    body = re.sub(r'\<br \/\>!\[image.png\]', "\n![image.png]", body)  # 正则去除语雀导出的图片后紧跟的<br \>标签
+    body = re.sub(r'\)\<br \/\>', ")\n", body)  # 正则去除语雀导出的图片后紧跟的<br \>标签
+    body = f"# {title} \n" + body
+    return body

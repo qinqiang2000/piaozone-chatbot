@@ -5,6 +5,7 @@ import sync.gpt_asst_writer as gw
 import sync.yq_reader as yq
 
 
+# GPT Assistant同步流程
 # 同步到yzj_token对应的知识库文档到gpt assistant
 def sync_gpt_by_yzj_flow(yzj_token):
     # 获取语雀知识库id、分组title和assistant_id

@@ -215,10 +215,10 @@ def add_index_in_doc_start(file_buckets, doc_buckets, base_path="./tmp"):
 
 
 def transform_md_body(body, title):
-    body = re.sub("<a name=\".*\"></a>", "", body)  # 正则去除语雀导出的<a>标签
+    body = re.sub("<a name=\".*\"></a>", "", body)  # 去除语雀导出的<a>标签
     body = re.sub("\x00", "", body)  # 去除不可见字符\x00
     body = re.sub("\x05", "", body)  # 去除不可见字符\x05
-    body = re.sub(r'\<br \/\>!\[image.png\]', "\n![image.png]", body)  # 正则去除语雀导出的图片后紧跟的<br \>标签
-    body = re.sub(r'\)\<br \/\>', ")\n", body)  # 正则去除语雀导出的图片后紧跟的<br \>标签
+    body = re.sub(r'\<br \/\>!\[image.png\]', "\n![image.png]", body)  # 去除语雀导出的图片后紧跟的<br \>标签
+    body = re.sub(r'\)\<br \/\>', ")\n", body)  # 去除语雀导出的图片后紧跟的<br \>标签
     body = f"# {title} \n" + body
     return body

@@ -10,7 +10,7 @@ load_dotenv(override=True)
 
 client = OpenAI()
 
-
+LEQI_ASSISTANT_ID="asst_G5t60WEtbD9ygU5n2Ol727N6"
 file_path = '../data/faq.md'  # 替换为你的文件路径
 FAQ_FILE_ID = "file-oVYtNglhudbLVCSNuO5EvTf8"
 leqi_assistant = Assistant(LEQI_ASSISTANT_ID)

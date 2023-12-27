@@ -1,3 +1,5 @@
+import re
+
 from openai import OpenAI
 
 import common_utils as utils
@@ -18,7 +20,7 @@ def sync_data(docs, id=None):
         html_docs, faq_docs = split_docs(docs)
 
         # 处理faq
-        faq_path = sync_faq(faq_docs, id)
+        faq_path = transform_faq(faq_docs, id)
 
         # 处理普通文档
         html_path = sync_docs(html_docs, id)
@@ -56,7 +58,7 @@ def split_docs(docs):
     return html_docs, faq_docs
 
 
-def sync_faq(faq_docs, assistant_id):
+def transform_faq(faq_docs, assistant_id):
     if not faq_docs:
         logging.warning("语雀文档中没有符合faq规定的相关文档，请检查")
         return
@@ -153,11 +155,10 @@ def distribute_docs(docs, base_path="./tmp"):
             doc = docs[index]
             file_path = os.path.join(base_path, str(index + 1) + ".html")
             with open(file_path, "w", encoding="utf-8") as file:
-                file.write(
-                    f"<b>文件索引：</b><br>《{doc['title']} 》开始位置（字数）：0<br>"
-                    f"<b>===================================索引分割============================================</b>")
-                file.write(utils.clear_css_code(doc["body_html"]))
-                file.write(single_doc_end_format.format(doc["title"], doc["word_count"]))
+                body = re.sub(r'<!doctype html>', f'<!DOCTYPE html><h1>{doc["title"]}</h1>', doc["body_html"],
+                              count=1, flags=re.IGNORECASE)
+                file.write(utils.clear_css_code(body))
+                # file.write(single_doc_end_format.format(doc["title"], doc["word_count"]))
                 file_buckets.append(file)
     else:
         for index in range(limit):
@@ -183,9 +184,11 @@ def distribute_docs(docs, base_path="./tmp"):
             doc_buckets[min_bucket_index].append(doc)
             file_path = os.path.join(base_path, file_buckets[min_bucket_index].name)
             with open(file_path, "a", encoding="utf-8") as file:
-                file.write(utils.clear_css_code(doc["body_html"]))
+                body = re.sub(r'<!doctype html>', f'<!DOCTYPE html><h1>{doc["title"]}</h1>', doc["body_html"],
+                              count=1, flags=re.IGNORECASE)
+                file.write(utils.clear_css_code(body))
                 file.write(single_doc_end_format.format(doc["title"], doc["word_count"]))
-        add_index_in_doc_start(file_buckets, doc_buckets, base_path)
+        # add_index_in_doc_start(file_buckets, doc_buckets, base_path)
 
     return file_buckets
 

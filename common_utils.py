@@ -72,8 +72,19 @@ def clear_css_code(html_content):
     for tag in soup.find_all(style=True):
         del tag['style']
 
-    for tag in soup.find_all(class_=True):
-        del tag['class']
+    for tag in soup(True):
+        if "class" in tag.attrs:
+            del tag["class"]
+        if "id" in tag.attrs:
+            del tag["id"]
+        if "width" in tag.attrs:
+            del tag["width"]
+
+    # 删除data-开头的所有属性
+    for tag in soup.find_all(attrs=re.compile("^data-")):
+        for attr in list(tag.attrs.keys()):
+            del tag[attr]
+
     return soup.prettify()
 
 

@@ -4,3 +4,9 @@ dn5ehb: # 语雀知识库的唯一标识
     yzj_token:  # 云之家的群token，用于区别不同的群
       - "d29fe265a9594811881e86b7e3d8a1e7"
       - "123"
+
+kro38t:
+  AI知识库规范:
+    gptAssistantId: "asst_QGcOk8k7ORdxLS17VO1nKWQb"
+    yzj_token:
+      - "92d70c89072e4a08a301aa33e4285f8b"

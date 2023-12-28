@@ -157,7 +157,10 @@ def add_qa(assistant, yzj_token, msg: RobotMsg, question, answer):
 
 def sync_gpt_assistant(yzj_token, msg: RobotMsg):
     success = "成功"
-    ret = sf.sync_gpt_by_yzj_flow(yzj_token)
+    if "sync gpt cache" in msg.content.lower():
+        ret = sf.sync_gpt_by_yzj_cache_flow(yzj_token)
+    else:
+        ret = sf.sync_gpt_from_yq(yzj_token)
     if not ret:
         success = "失败"
 
@@ -183,8 +186,8 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, yzj_t
     gpt_assistant_id = get_assistant_id_by_yzj_token(yzj_token)
     assistant = get_assistant(gpt_assistant_id)
 
-    # msg.content等于sync gpt时(不分大小写），同步最新文档至Assistant
-    if msg.content.lower() == "sync gpt":
+    # msg.content包含sync gpt，则同步语雀文档到gpt assistant
+    if "sync gpt" in msg.content.lower():
         task.add_task(sync_gpt_assistant, yzj_token, msg)
     elif msg.content:
         # 增加语料：正则表达式匹配 Q[] 和 A[] 内的内容，如果匹配，则说明是增加语料的请求

@@ -23,7 +23,7 @@ def test_chat():
 
 
 # 测试sync gpt
-def test_chat_syn_gpt():
+def test_chat_syn_gpt(msg="@乐企 sync gpt"):
     url = "http://localhost:9999/chat"
     headers = {"sessionId": "test_session_id"}
     data = {
@@ -32,7 +32,7 @@ def test_chat_syn_gpt():
         "operatorName": "test_operator_name",
         "msgId": "test_msg_id",
         "operatorOpenid": "test_operator_openid",
-        "content": "@乐企 sync gpt",
+        "content": msg,
         "time": 1632393600,
         "sessionId": "test_session_id"
     }
@@ -50,5 +50,5 @@ def test_convert_excel_into_mds():
 
 
 # 执行测试
-test_chat_syn_gpt()
+test_chat_syn_gpt("@乐企 sync gpt cache")
 # test_convert_excel_into_mds()

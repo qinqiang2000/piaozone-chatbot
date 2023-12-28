@@ -1,5 +1,9 @@
-import requests
+"""
+语雀工具类（废弃）
+"""
 
+import json
+import requests
 from assistant import Assistant
 from config.settings import *
 from common_utils import *

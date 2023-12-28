@@ -1,3 +1,9 @@
+"""
+GPT Assistant writer模块，提供清洗文档，并上传到GPT Assistant的功能
+todo：后续考虑将清洗文档的功能独立出来，作为一个单独的模块
+"""
+
+import glob
 import re
 
 from openai import OpenAI
@@ -35,6 +41,28 @@ def sync_data(docs, id=None):
         # 上传普通文件
         for f in html_path:
             create_file(f, id)
+    except Exception as e:
+        logging.error(f"同步数据到gpt assistant失败：{e}")
+        return False
+
+    return True
+
+
+# 同步本地缓存docs到gpt assistant的文件(用于测试)
+def sync_cache_data(asst_id):
+    try:
+        # 清空原有数据
+        if empty_files(asst_id) < 0:
+            logging.error(f"同步数据gpt assistant失败，无法清空原有数据：{asst_id}")
+            return False
+
+        file_path = os.path.join(tmp_dir, f"{asst_id}")
+        files = glob.glob(os.path.join(file_path, "*.md"))
+
+        # 同步所有文件
+        for file in files:
+            create_file(os.path.join(file_path, file), asst_id)
+
     except Exception as e:
         logging.error(f"同步数据到gpt assistant失败：{e}")
         return False

@@ -4,6 +4,7 @@ todo：后续考虑将清洗文档的功能独立出来，作为一个单独的�
 """
 
 import glob
+import logging
 import re
 
 from openai import OpenAI
@@ -102,17 +103,19 @@ def transform_faq(faq_docs, assistant_id):
     return faq_path
 
 
-def transform_docs(html_docs, assistant_id):
-    if len(html_docs) == 0:
+def transform_docs(docs, assistant_id):
+    if len(docs) == 0:
         logging.warning("语雀文档中没有复合规定的相关文档，请检查")
         return
 
     base_path = os.path.join(tmp_dir, f"{assistant_id}")
+    logging.debug(f"文件保存路径：{base_path}")
     if not os.path.exists(os.path.dirname(base_path)):
+        logging.info(f"创建目录：{base_path}")
         os.makedirs(os.path.dirname(base_path))
 
     # 将文档内容分配到多个文件中，以应对gpt assistant的文件上限
-    operated_files = distribute_docs(html_docs, base_path)
+    operated_files = distribute_docs(docs, base_path)
 
     file_path = [os.path.join(base_path, f.name) for f in operated_files]
 

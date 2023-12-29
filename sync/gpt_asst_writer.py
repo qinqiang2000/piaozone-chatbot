@@ -6,6 +6,7 @@ todo：后续考虑将清洗文档的功能独立出来，作为一个单独的�
 import glob
 import logging
 import re
+import traceback
 
 from openai import OpenAI
 
@@ -44,6 +45,7 @@ def sync_data(docs, id=None):
             create_file(f, id)
     except Exception as e:
         logging.error(f"同步数据到gpt assistant失败：{e}")
+        traceback.print_exc()
         return False
 
     return True
@@ -111,7 +113,7 @@ def transform_docs(docs, assistant_id):
     base_path = os.path.join(tmp_dir, f"{assistant_id}")
     if not os.path.exists(base_path):
         logging.info(f"创建目录：{base_path}")
-        os.makedirs(os.path.dirname(base_path))
+        os.makedirs(base_path)
 
     # 将文档内容分配到多个文件中，以应对gpt assistant的文件上限
     operated_files = distribute_docs(docs, base_path)

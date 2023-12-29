@@ -30,7 +30,7 @@ def sync_data(docs, id=None):
         faq_path = transform_faq(faq_docs, id)
 
         # 处理普通文档
-        html_path = transform_docs(html_docs, id)
+        docs_path = transform_docs(html_docs, id)
 
         # 清空原有数据
         if empty_files(id) < 0:
@@ -38,10 +38,11 @@ def sync_data(docs, id=None):
             return False
 
         # 上传faq文件
-        create_file(faq_path, id)
+        if faq_path:
+            create_file(faq_path, id)
 
         # 上传普通文件
-        for f in html_path:
+        for f in docs_path:
             create_file(f, id)
     except Exception as e:
         logging.error(f"同步数据到gpt assistant失败：{e}")

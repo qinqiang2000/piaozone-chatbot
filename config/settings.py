@@ -17,6 +17,9 @@ AZURE_EBD_DEPLOYMENT_NAME = os.getenv('AZURE_EBD_DEPLOYMENT_NAME')
 
 API_TYPE = os.getenv('API_TYPE')
 
+# 知识库、ai助手、云之家群关系的配置地址
+CONFIG_PATH = "config/config.yml"
+
 # 云之家通知地址
 YUNZHIJIA_NOTIFY_URL = "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken={}"
 # 云之家每张卡片消息最大图片数

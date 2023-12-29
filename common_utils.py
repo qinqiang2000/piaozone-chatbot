@@ -9,9 +9,9 @@ import zipfile
 import shutil
 import yaml
 
+import config.settings as cfg
 
-config_path = "config/config.yml"
-config_path = os.path.join(os.path.dirname(__file__), config_path)
+config_path = os.path.join(os.path.dirname(__file__), cfg.CONFIG_PATH)
 config_data = yaml.load(open(config_path, 'rb'), Loader=yaml.Loader)
 
 

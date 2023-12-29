@@ -109,8 +109,7 @@ def transform_docs(docs, assistant_id):
         return
 
     base_path = os.path.join(tmp_dir, f"{assistant_id}")
-    logging.debug(f"文件保存路径：{base_path}")
-    if not os.path.exists(os.path.dirname(base_path)):
+    if not os.path.exists(base_path):
         logging.info(f"创建目录：{base_path}")
         os.makedirs(os.path.dirname(base_path))
 

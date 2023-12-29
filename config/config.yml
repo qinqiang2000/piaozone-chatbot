@@ -10,3 +10,9 @@ kro38t:
     gptAssistantId: "asst_QGcOk8k7ORdxLS17VO1nKWQb"
     yzj_token:
       - "92d70c89072e4a08a301aa33e4285f8b"
+
+msbmed:
+  订单知识库（对外）:
+    gptAssistantId: "asst_JrZDoXi8DYG9rwbCmRraHllL"
+    yzj_token:
+      - "8843a091baa84f2cb6ab49729ff1221c"

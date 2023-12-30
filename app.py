@@ -141,20 +141,6 @@ def gen_card_notice_data_content(img_urls, img_num, card_num, index):
     return data_content
 
 
-def add_qa(assistant, yzj_token, msg: RobotMsg, question, answer):
-    output = "语料增加成功"
-    try:
-        assistant.add_faq(question, answer, msg.operatorName)
-    except Exception as e:
-        logging.error(e)
-        output = "语料增加失败"
-    logging.info(f"{output}：{question} --> {answer}")
-
-    data = {"content": output,
-            "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
-    requests.post(YUNZHIJIA_NOTIFY_URL.format(yzj_token), json=data)
-
-
 def sync_gpt_assistant(yzj_token, msg: RobotMsg):
     success = "成功"
     if "sync gpt cache" in msg.content.lower():
@@ -190,39 +176,12 @@ async def fpy_chat(request: Request, msg: RobotMsg, task: BackgroundTasks, yzj_t
     if "sync gpt" in msg.content.lower():
         task.add_task(sync_gpt_assistant, yzj_token, msg)
     elif msg.content:
-        # 增加语料：正则表达式匹配 Q[] 和 A[] 内的内容，如果匹配，则说明是增加语料的请求
-        question = re.findall(r'Q\[(.*?)\]', msg.content)
-        answer = re.findall(r'A\[(.*?)\]', msg.content)
-        if question and answer:
-            task.add_task(add_qa, assistant, yzj_token, msg, question[0], answer[0])
-        else:
-            task.add_task(chat_doc, assistant, yzj_token, msg)
+        task.add_task(chat_doc, assistant, yzj_token, msg)
 
     return {
         "success": True,
         "data": {"type": 2, "content": "请稍等..."}
     }
-
-
-@app.post("/convert-excel-into-mds")
-async def convert_excel_into_mds(task: BackgroundTasks, file: UploadFile = File(...)):
-    if is_xlsx_file(file.filename):
-        # 保存上传的文件到本地
-        with open(file.filename, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        zip_file = excel_sheets_to_markdown_and_zip(file.filename)
-        # 返回处理后的文件
-        response = FileResponse(path=zip_file, filename=os.path.basename(zip_file),
-                                media_type='application/octet-stream')
-        task.add_task(os.remove, zip_file)
-        return response
-    else:
-        return "只支持处理excel xlsx文件"
-
-
-@app.get("/excel-convertor")
-async def excel_convertor():
-    return FileResponse("html/excel-convertor.html")
 
 
 if __name__ == "__main__":

@@ -36,8 +36,10 @@ def sync_data(yq_docs, id=None):
         # 处理普通文档
         docs_path = transform_docs(docs, id)
 
-        docs_path.append(faq_path)
-        docs_path.append(table_docs_path)
+        if faq_path:
+            docs_path.append(faq_path)
+        if table_docs_path:
+            docs_path.append(table_docs_path)
 
         # 清空原有数据
         if empty_files(id) < 0:
@@ -98,7 +100,7 @@ def split_docs(yq_docs):
 def transform_faq(faq_docs, assistant_id):
     if not faq_docs:
         logging.warning("本次同步的知识库文档中没有符合faq规定的相关文档，请检查")
-        return
+        return None
 
     faq_bodies = "\n".join([faq_doc["body"] for faq_doc in faq_docs])
 
@@ -115,7 +117,7 @@ def transform_faq(faq_docs, assistant_id):
 def transform_table_docs(docs, assistant_id):
     if not docs:
         logging.info(f"本次同步的知识库文档中, 没有表格：{assistant_id}")
-        return
+        return None
 
     htm_docs = []
     for doc in docs:

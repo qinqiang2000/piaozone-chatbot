@@ -4,10 +4,11 @@ todo：后续考虑将清洗文档的功能独立出来，作为一个单独的�
 """
 
 import glob
+import json
 import logging
 import re
 import traceback
-
+import pandas as pd
 from openai import OpenAI
 
 from config.settings import *
@@ -17,31 +18,33 @@ tmp_dir = os.path.join(os.path.dirname(__file__), "../tmp")
 
 
 # 同步docs到gpt assistant的文件
-def sync_data(docs, id=None):
-    if not docs or not id:
+def sync_data(yq_docs, id=None):
+    if not yq_docs or not id:
         logging.error(f"同步数据到gpt assistant失败，参数有误: {id}")
         return False
 
     try:
-        # 拆分文档为faq和普通文档(取语雀body_html格式内容)
-        html_docs, faq_docs = split_docs(docs)
+        # 拆分文档为普通文档、表格文档、faq文档
+        docs, table_docs, faq_docs = split_docs(yq_docs)
 
         # 处理faq
         faq_path = transform_faq(faq_docs, id)
 
+        # 处理表格文档
+        table_docs_path = transform_table_docs(table_docs, id)
+
         # 处理普通文档
-        docs_path = transform_docs(html_docs, id)
+        docs_path = transform_docs(docs, id)
+
+        docs_path.append(faq_path)
+        docs_path.append(table_docs_path)
 
         # 清空原有数据
         if empty_files(id) < 0:
             logging.error(f"同步数据gpt assistant失败，无法清空原有数据：{id}")
             return False
 
-        # 上传faq文件
-        if faq_path:
-            create_file(faq_path, id)
-
-        # 上传普通文件
+        # 同步所有文件
         for f in docs_path:
             create_file(f, id)
     except Exception as e:
@@ -74,24 +77,27 @@ def sync_cache_data(asst_id):
     return True
 
 
-def split_docs(docs):
+def split_docs(yq_docs):
     """
-    拆分文档为faq和普通文档(取语雀body_html格式内容)
+    拆分文档为普通文档、表格文档、faq文档
     """
-    html_docs = []
+    docs = []
+    table_docs = []
     faq_docs = []
-    for doc in docs:
+    for doc in yq_docs:
         if (doc["format"] == "markdown" or doc["format"] == "lake") \
                 and "faq" in doc["title"].lower() and doc["body"]:
             faq_docs.append(doc)
         elif doc["format"] == "lake" and doc["body"]:
-            html_docs.append(doc)
-    return html_docs, faq_docs
+            docs.append(doc)
+        elif doc["format"] == "lakesheet" and doc["body_sheet"]:
+            table_docs.append(doc)
+    return docs, table_docs, faq_docs
 
 
 def transform_faq(faq_docs, assistant_id):
     if not faq_docs:
-        logging.warning("语雀文档中没有符合faq规定的相关文档，请检查")
+        logging.warning("本次同步的知识库文档中没有符合faq规定的相关文档，请检查")
         return
 
     faq_bodies = "\n".join([faq_doc["body"] for faq_doc in faq_docs])
@@ -104,6 +110,32 @@ def transform_faq(faq_docs, assistant_id):
         file.write(faq_bodies)
 
     return faq_path
+
+
+def transform_table_docs(docs, assistant_id):
+    if not docs:
+        logging.info(f"本次同步的知识库文档中, 没有表格：{assistant_id}")
+        return
+
+    htm_docs = []
+    for doc in docs:
+        htm = f"<h1>{doc['title']}</h1>\n"
+        sheets = json.loads(doc['body_sheet'])['data']
+        for sheet in sheets:
+            table = sheet['table']
+            df = pd.DataFrame(table)
+            htm = htm + f"<h2>{sheet['name']}</<h2>\n" + df.to_html(index=False) + "\n"
+        htm_docs.append(htm)
+
+    html_content = "\n".join(htm_docs)
+
+    table_path = os.path.join(tmp_dir, f"{assistant_id}/table.html")
+    os.makedirs(os.path.dirname(table_path), exist_ok=True)
+
+    with open(table_path, "w", encoding="utf-8") as file:
+        file.write(html_content)
+
+    return table_path
 
 
 def transform_docs(docs, assistant_id):

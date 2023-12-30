@@ -29,11 +29,11 @@ CARD_NOTICE_TEMPLATE_ID = "64d08cb4e4b07ba2b112b395"
 
 
 YUQUE_AUTH_TOKEN = "aAzViMlNLUtykug7vU5EnmQKvYn9DZGQICFmL3mB"
-YUQUE_NAMESPACE = "nbklz3"
+YUQUE_NAMESPACE = "nbklz3"  # 语雀团队/空间路径
 YUQUE_BASE_URL = "https://jdpiaozone.yuque.com/api/v2"
 YUQUE_REQUEST_AGENT = "piaozone"
-# assistant file最多文件数-1(要多留一个给faq.md)
-ASSISTANT_FILE_NUM_LIMIT = 19
+# assistant file最多文件数-2(要留给faq.md和table.html)
+ASSISTANT_FILE_NUM_LIMIT = 18
 
 
 PIAOZONE_TOKEN_URL = "https://api-dev.piaozone.com/test/base/exception/login/token"

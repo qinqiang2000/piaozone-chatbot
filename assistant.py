@@ -1,3 +1,5 @@
+import logging
+
 import openai
 from openai import OpenAI
 
@@ -55,6 +57,7 @@ class Assistant:
             return None
 
         messages = self.client.beta.threads.messages.list(thread_id=thread_id, limit=1)
+        logging.debug(f"[{session_id}]: {messages.data[0].content[0]}")
         return messages.data[0].content[0].text
 
     def list_files(self):

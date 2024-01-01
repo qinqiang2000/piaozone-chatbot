@@ -11,7 +11,6 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from starlette.background import BackgroundTasks
 
-from sync import yuque_utils
 from assistant import Assistant
 from common_utils import *
 from config.settings import *
@@ -43,7 +42,7 @@ def get_assistant(id):
 @app.on_event("startup")
 async def startup_event():
     # 启动定时任务：同步语雀文档到gpt assistant
-    scheduler.add_job(yuque_utils.sync_yuque_docs_2_assistant, CronTrigger(hour=2))
+    # scheduler.add_job(yuque_utils.sync_yuque_docs_2_assistant, CronTrigger(hour=2))
     # scheduler.start()
     logging.info("定时任务暂不启动")
 

@@ -5,12 +5,11 @@ todo：后续考虑将清洗文档的功能独立出来，作为一个单独的�
 
 import glob
 import json
-import logging
 import re
 import traceback
 import pandas as pd
 from openai import OpenAI
-
+import common_utils as utils
 from config.settings import *
 
 client = OpenAI()
@@ -126,6 +125,7 @@ def transform_table_docs(docs, assistant_id):
         for sheet in sheets:
             table = sheet['table']
             df = pd.DataFrame(table)
+            utils.clear_pd_nan(df)
             htm = htm + f"<h2>{sheet['name']}</<h2>\n" + df.to_html(index=False) + "\n"
         htm_docs.append(htm)
 

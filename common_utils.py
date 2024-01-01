@@ -41,28 +41,11 @@ def get_yq_info_by_yzj_token(yzj_token):
     return None, None
 
 
-def clear_css_code(html_content):
-    soup = BeautifulSoup(html_content, 'html.parser')
-
-    for style_tag in soup.find_all('style'):
-        style_tag.decompose()
-
-    for tag in soup.find_all(style=True):
-        del tag['style']
-
-    for tag in soup(True):
-        if "class" in tag.attrs:
-            del tag["class"]
-        if "id" in tag.attrs:
-            del tag["id"]
-        if "width" in tag.attrs:
-            del tag["width"]
-        # 如果是以 data-开头的属性，则删除
-        for attr in list(tag.attrs.keys()):
-            if attr.startswith("data-"):
-                del tag[attr]
-
-    return soup.prettify()
+def clear_pd_nan(df):
+    # 删除df的空行
+    df.replace('', pd.NA, inplace=True)
+    df.dropna(how='all', inplace=True)
+    df.replace(pd.NA, '', inplace=True)
 
 
 def remove_html_tags(text):

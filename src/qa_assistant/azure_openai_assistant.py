@@ -71,6 +71,8 @@ class Assistant:
                 message_content = self.process_annotation(message_content)
             return message_content.value
         logger.debug(f"[{session_id}]: {run.status}")
+        if run.status == "failed":
+            logger.error(f"{run.status}. 明细:\n{run.last_error.message}")
         return None
 
     def __wait_on_run(self, run: Run, session_id: str) -> Run:

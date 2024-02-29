@@ -24,6 +24,9 @@
 - 在群中启用一个“通知”机器人，获取yzjtoken
 - 在该群启用一个“对话型”机器人，将项目地址填入其接受地址，并将上面token填入，例如：{项目运行地址}/chat?yzj_token=***
 ### 2.2 语雀、云之家群、GPT Assistant的关系配置
+
+在语雀的对应知识库中配置消息推送,webhook地址为 {项目运行地址}/yuque/webhook![](./docs/语雀消息推送配置.png)
+
 在config.yml中配置语雀知识库、云之家群、GPT Assistant的关系，参考如下：
 
 ```yaml

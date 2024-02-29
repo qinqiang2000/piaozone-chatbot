@@ -1,18 +1,43 @@
+#azure
+# dn5ehb: # 语雀知识库的唯一标识
+  # 乐企:  # 语雀分的名字；我们以分组为单位进行AI知识库的管理
+    # gptAssistantId: "asst_dI1uzWr3Lpo3iHKHhk8gwT1c"
+    # yzj_token:  # 云之家的群token，用于区别不同的群
+      # - "d29fe265a9594811881e86b7e3d8a1e7"
+      # - "3e98b4548ec94942a5003078aa33951a"
+
+#kro38t:
+#  AI知识库规范:
+#    gptAssistantId: "asst_8pL80iYEONSdOBExwy7Or1Vy"
+#    yzj_token:
+#      - "92d70c89072e4a08a301aa33e4285f8b"
+
+#msbmed:
+#  订单知识库（对外）:
+#    gptAssistantId: "asst_EzmFqPnSjft319VRR0vDF09Z"
+#    yzj_token:
+#      - "8843a091baa84f2cb6ab49729ff1221c"
+
+#openai
 dn5ehb: # 语雀知识库的唯一标识
   乐企:  # 语雀分的名字；我们以分组为单位进行AI知识库的管理
     gptAssistantId: "asst_G5t60WEtbD9ygU5n2Ol727N6"
     yzj_token:  # 云之家的群token，用于区别不同的群
-      - "d29fe265a9594811881e86b7e3d8a1e7"
-      - "123"
+      # - "d29fe265a9594811881e86b7e3d8a1e7"
+      - "3e98b4548ec94942a5003078aa33951a"
+  # 乐企测试:
+    # gptAssistantId: "asst_LOaM72rqR0MO3Z4jWDXtnE6u"
+    # yzj_token:
+      # - "9b956f87966b4c38af0cf6509a3b66f0"
+# kro38t:
+  # AI知识库规范:
+    # gptAssistantId: "asst_QGcOk8k7ORdxLS17VO1nKWQb"
+    # yzj_token:
+      # - "92d70c89072e4a08a301aa33e4285f8b"
 
-kro38t:
-  AI知识库规范:
-    gptAssistantId: "asst_QGcOk8k7ORdxLS17VO1nKWQb"
-    yzj_token:
-      - "92d70c89072e4a08a301aa33e4285f8b"
+# msbmed:
+  # 订单知识库（对外）:
+    # gptAssistantId: "asst_JrZDoXi8DYG9rwbCmRraHllL"
+    # yzj_token:
+      # - "8843a091baa84f2cb6ab49729ff1221c"
 
-msbmed:
-  订单知识库（对外）:
-    gptAssistantId: "asst_JrZDoXi8DYG9rwbCmRraHllL"
-    yzj_token:
-      - "8843a091baa84f2cb6ab49729ff1221c"

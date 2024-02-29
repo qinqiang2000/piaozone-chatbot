@@ -17,7 +17,7 @@
   
   > 1. 云之家群聊的正向流程
   > 
-  > 2. 语雀文档的同步
+  > 2. 语雀文档的同步,包括基于云之家传入文本 “sync gpt” 的同步以及基于语雀更新消息通知的同步
 
 ## 2. 配置
 ### 2.1 云之家群配置
@@ -42,8 +42,8 @@ dn5ehb: # 语雀知识库的唯一标识
 OPENAI_API_KEY=sk-***
 
 # azure
-AZURE_API_KEY=***
-AZURE_BASE_URL="https://kdtest.openai.azure.com/"
+AZURE_OPENAI_API_KEY=***
+AZURE_OPENAI_ENDPOINT="https://kdtest.openai.azure.com/"
 ...
 ```
 
@@ -56,7 +56,7 @@ pip install -r requirements.txt
 运行
 
 ```shell
-python app.py
+python src/app.py
 ```
 
 > 环境要求：python3.10+

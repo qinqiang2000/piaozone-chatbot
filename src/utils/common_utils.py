@@ -1,17 +1,18 @@
 import logging
 import re
-
-from bs4 import BeautifulSoup
-import pandas as pd
-import openpyxl
 import os
-import zipfile
 import shutil
 import yaml
 
-import config.settings as cfg
+import pandas as pd
+import openpyxl
+import zipfile
+import tiktoken
 
-config_path = os.path.join(os.path.dirname(__file__), cfg.CONFIG_PATH)
+import config.settings as cfg
+from src.utils.logger import logger
+
+config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), cfg.CONFIG_PATH)
 config_data = yaml.load(open(config_path, 'rb'), Loader=yaml.Loader)
 
 
@@ -39,6 +40,38 @@ def get_yq_info_by_yzj_token(yzj_token):
             if yzj_token in info['yzj_token']:
                 return repo, toc_title
     return None, None
+# 基于语雀知识库id和分组title获取云之家群token和assistant_id
+def get_yzj_token_and_asst_id_by_yq_info(repo_name, toc_title_name):
+    for repo, dirs in config_data.items():
+        if repo == repo_name:
+            for toc_title, info in dirs.items():
+                if toc_title == toc_title_name:
+                    return info['yzj_token'], info['gptAssistantId']
+    return None, None
+# 获取所有的语雀知识库id和分组title
+def get_all_yq_info():
+    yq_info = []
+    for repo, dirs in config_data.items():
+        for toc_title in dirs:
+            yq_info.append((repo, toc_title))
+    return yq_info
+def get_all_yq_repo():
+    return list(config_data.keys())
+# 基于助手id获取语雀信息
+def get_yq_info_by_asst_id(asst_id):
+    for repo, dirs in config_data.items():
+        for toc_title, info in dirs.items():
+            if asst_id == info['gptAssistantId']:
+                return repo, toc_title
+    return None, None
+# 获取所有的助手id
+def get_all_asst_id():
+    asst_ids = []
+    for repo, dirs in config_data.items():
+        for toc_title, info in dirs.items():
+            asst_ids.append(info['gptAssistantId'])
+    return asst_ids
+
 
 
 def clear_pd_nan(df):
@@ -87,7 +120,7 @@ def zip_folder(folder_path):
                 # 添加文件到zip
                 zipf.write(full_path, relative_path)
 
-    logging.info(f'文件夹 "{folder_path}" 已被压缩为 "{output_zip_file}"')
+    logger.info(f'文件夹 "{folder_path}" 已被压缩为 "{output_zip_file}"')
     # 删除原始文件夹
     shutil.rmtree(folder_path)
     return output_zip_file
@@ -125,7 +158,7 @@ def excel_sheets_to_markdown_and_zip(excel_file_path):
             # 将Markdown字符串写入文件
             with open(markdown_file_path, 'w', encoding='utf-8') as file:
                 file.write(markdown_str)
-            logging.info(f'Markdown文件已生成：{markdown_file_path}')
+            logger.info(f'Markdown文件已生成：{markdown_file_path}')
     # 删除excel文件
     os.remove(excel_file_path)
     return zip_folder(output_folder)
@@ -136,3 +169,25 @@ def is_xlsx_file(file_path):
     _, ext = os.path.splitext(file_path)
     # 检查扩展名是否为Excel格式
     return ext.lower() == '.xlsx'
+
+def generate_signature(secret, message):
+    secret = secret.encode('utf-8')
+    summary_info = ",".join([
+        message.robot_id, message.robot_name, message.operator_openid,
+        message.operator_name, message.time_stamp, message.msg_id, message.content])
+    summary_info = summary_info.encode('utf-8')
+    signature = hmac.new(secret, summary_info, hashlib.sha1)
+    return base64.b64encode(signature.digest()).decode('utf-8')
+
+#tiktoken
+
+def openai_num_tokens_from_string(string):
+    """Return the number of tokens."""
+    encoding = tiktoken.get_encoding("cl100k_base")
+    num_tokens = len(encoding.encode(string))
+    return num_tokens
+
+def openai_truncate_string(string, max_tokens):
+    """Truncate the string to the maximum number of tokens."""
+    encoding = tiktoken.get_encoding("cl100k_base")
+    return encoding.decode(encoding.encode(string)[:max_tokens])

@@ -1,54 +1,26 @@
-from sync.yq_reader import list_yuque_toc
-import requests
+import sys
+import os
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, root_dir)
+
 import json
+import requests
 
 
-# 测试 /chat 接口
-def test_chat():
-    url = "http://localhost:9999/chat"
-    headers = {"sessionId": "test_session_id"}
-    data = {
-        "type": 1,
-        "robotId": "test_robot_id",
-        "operatorName": "test_operator_name",
-        "msgId": "test_msg_id",
-        "operatorOpenid": "test_operator_openid",
-        "content": "test_content",
-        "time": 1632393600,
-        "sessionId": "test_session_id"
-    }
-    params = {"yzj_token": "test_yzj_token"}
-    response = requests.post(url, headers=headers, data=json.dumps(data), params=params)
-    print(response.json())
+from config.settings import *
+from src.sync.yuque_reader import YQReader
+from src.utils.common_utils import get_all_yq_repo
 
+if __name__ == '__main__':
+    yuque_repos = get_all_yq_repo()
+    yqreader = YQReader(yuque_base_url=YUQUE_BASE_URL,
+                        yuque_namespace=YUQUE_NAMESPACE,
+                        yuque_auth_token=YUQUE_AUTH_TOKEN,
+                        yuque_request_agent=YUQUE_REQUEST_AGENT,
+                        yuque_repos=yuque_repos)
+    # 测试 yq获取目录
 
-# 测试sync gpt
-def test_chat_syn_gpt(msg="@乐企 sync gpt"):
-    url = "http://localhost:9999/chat"
-    headers = {"sessionId": "test_session_id"}
-    data = {
-        "type": 1,
-        "robotId": "test_robot_id",
-        "operatorName": "test_operator_name",
-        "msgId": "test_msg_id",
-        "operatorOpenid": "test_operator_openid",
-        "content": msg,
-        "time": 1632393600,
-        "sessionId": "test_session_id"
-    }
-    params = {"yzj_token": "d29fe265a9594811881e86b7e3d8a1e7"}
-    response = requests.post(url, headers=headers, data=json.dumps(data), params=params)
-    print(response.json())
+    print(yqreader.list_yuque_toc("dn5ehb"))
 
-
-# 测试 /convert-excel-into-mds 接口
-def test_convert_excel_into_mds():
-    url = "http://localhost:9999/convert-excel-into-mds"
-    files = {'file': open('test.xlsx', 'rb')}
-    response = requests.post(url, files=files)
-    print(response.content)
-
-
-# 执行测试
-test_chat_syn_gpt("@乐企 sync gpt cache")
-# test_convert_excel_into_mds()
+    # 测试获取单文档
+    print(yqreader.get_single_doc("dn5ehb", "nhpf1g6k8m9h9wop"))

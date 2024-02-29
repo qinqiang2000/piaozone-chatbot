@@ -1,85 +1,67 @@
+import sys
+import os
+root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, root_dir)
 import time
-
-from assistant import Assistant
-from openai import OpenAI
-import pandas as pd
 from io import StringIO
+
+import traceback
+import pandas as pd
+
 from config.settings import *
+from src.utils.logger import logger
 
-load_dotenv(override=True)
-
-client = OpenAI()
-
-LEQI_ASSISTANT_ID="asst_G5t60WEtbD9ygU5n2Ol727N6"
-file_path = '../data/faq.md'  # 替换为你的文件路径
-FAQ_FILE_ID = "file-oVYtNglhudbLVCSNuO5EvTf8"
-leqi_assistant = Assistant(LEQI_ASSISTANT_ID)
-
-def tetst_assistant_add_faq():
-    leqi_assistant.add_faq("问题：乐企联用和通用预计什么时候开通", "答案：预计2024年12月")
-
-tetst_assistant_add_faq()
-
-def test_file(question, answer):
-    with open(file_path, 'r') as file:
-        md_content = file.read()
-
-    # 将 Markdown 表格内容转换为 StringIO 对象
-    md_table = StringIO(md_content)
-
-    # 使用 pandas 读取表格，假设表格用 '|' 分隔，并跳过格式行
-    df = pd.read_csv(md_table, sep='|', skiprows=[1])
-
-    # 删除多余的空白列
-    df = df.drop(columns=[df.columns[0], df.columns[-1]])
-
-    # 增加一行，第一列的值是最后一行第一列的值 + 1
-    last_row = df.iloc[-1]
-    new_row = last_row.copy()
-    new_row[df.columns[0]] = last_row[df.columns[0]] + 1
-    new_row[df.columns[1]] = question
-    new_row[df.columns[2]] = answer
-    df = df._append(new_row, ignore_index=True)
-    print(df.iloc[-1])
-
-    # 将修改后的 Markdown 表格写回到原文件
-    md_table_modified = df.to_markdown(index=False)
-    with open(file_path, 'w') as file:
-        file.write(md_table_modified)
-
-
-def test_add_file():
-    test_file("公有云环境可以申请乐企吗", "可以，但要排队很久")
-
-def test_del_file():
-
-    deleted_assistant_file = client.beta.assistants.files.delete(
-        assistant_id=LEQI_ASSISTANT_ID,
-        file_id=FAQ_FILE_ID
-    )
-    print(deleted_assistant_file)
-
-
+def create_assistant():
+    if USE_AZURE_OPENAI:
+        from src.qa_assistant.azure_openai_assistant import Assistant
+        assistant = Assistant(assistant_id=None, api_key=AZURE_OPENAI_API_KEY,
+                              azure_endpoint=AZURE_OPENAI_ENDPOINT, api_version=OPENAI_API_VERSION,
+                              deployment_name=OPENAI_DEPLOYMENT_NAME)
+    else:
+        from src.qa_assistant.openai_assistant import Assistant
+        assistant = Assistant(assistant_id=None, api_key=OPENAI_API_KEY)
+    name = "测试乐企"
+    instructions = "你是中国税局乐企平台的智能客服。在回答问题时，注意底下每个括号内的所有名词，是同义词：\n（接入单位，直连单位）\n"\
+                   "（稅编、税收分类编码、商品编码）\n要求：\n0.找到答案如果有关联图片，可以直接将图片链接代替图片。链接信息直接将链接输出，无需转化为markdown格式；"\
+                   "\n1.请先从faq.md找答案，回答的内容可通过匹配该文件的“问题”，再直接将对应行的“答案”内容直接作为答案；\n2.如果找不到，找其他Markdown文件；注意：\n"\
+                   "- 每个Markdown文件是由多个独立子文件组合而成；\n-Markdown内通过H1标签（‘#  ’）来区分不同文件；\n-不同子文件的内容不要混在一起做回答\n3.再找不到，请从互联网寻求答案；\n"\
+                   "4.最后还是无法找到答案，请在回复的最后附加一句：【上述问题无法在标准知识库找到，具体请@张馨月】"
+    assistant.create_assistant(name=name, instructions=instructions)
+    return assistant
+def get_assistant(assistant_id):
+    if USE_AZURE_OPENAI:
+        from src.qa_assistant.azure_openai_assistant import Assistant
+        assistant = Assistant(assistant_id=assistant_id, api_key=AZURE_OPENAI_API_KEY,
+                              azure_endpoint=AZURE_OPENAI_ENDPOINT, api_version=OPENAI_API_VERSION,
+                              deployment_name=OPENAI_DEPLOYMENT_NAME)
+    else:
+        from src.qa_assistant.openai_assistant import Assistant
+        assistant = Assistant(assistant_id=assistant_id, api_key=OPENAI_API_KEY)
+    return assistant
 def test_assistant():
-    thread_id = 'fpy-abc'
-
-    # 创建一个Assistant类，用于处理openai的请求
-    yzj = Assistant('asst_G5t60WEtbD9ygU5n2Ol727N6')
-
-    yzj.chat(thread_id, "怎么申请乐企？")
-
-    while True:
-        time.sleep(2)
-        answer = yzj.get_answer('fpy-abc')
-        if answer:
-            print(answer)
-            break
-
-    yzj.chat('fpy-abc', "它的网址是什么？")
-
-    while True:
-        time.sleep(2)
-        answer = yzj.get_answer('fpy-abc')
-        if answer:
-            print(answer)
-            break
+    # 测试创建助手
+    assistant = create_assistant()
+    print(f"助手id：{assistant.assistant_id}")
+    print(f"是否存在文件：{assistant.check_asst_file()}")
+    try:
+        # 测试添加文件
+        file_path = "../docs/faq.md"
+        assistant.create_file(file_path)
+        # 测试对话
+        session_id = "test_session_id"
+        question = "怎么申请乐企？"
+        answer = assistant.chat(session_id=session_id, content=question)
+        print(f"问题：{question}\n答案：{answer}")
+        question = "它的网址是什么？"
+        answer = assistant.chat(session_id=session_id, content=question)
+        print(f"问题：{question}\n答案：{answer}")
+    except Exception as e:
+        logger.error(f"测试助手出错：{e}.{traceback.format_exc()}")
+    # 测试删除线程
+    assistant.del_all_threads()
+    # 测试删除文件
+    assistant.empty_files()
+    # 测试删除助手
+    assistant.del_assistant()
+if __name__ == '__main__':
+    test_assistant()

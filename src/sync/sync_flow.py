@@ -1,23 +1,28 @@
 """
 sync_flow模块，用于串联reader和writer,目前只支持全量数据同步
 """
+from enum import Enum
 import traceback
 
-import src.utils.common_utils as utils
 from src.utils.logger import logger
 from src.sync.yuque_reader import YQReader
 from src.sync.document_transformers import OpenAIAsstTransformer
 from src.sync.document_writers import OpenAIAsstWriter
 
 
+class SyncDestType(str, Enum):
+    """同步目的地"""
+    OPENAI_ASST = "openai-asst"
+    AZURE_ASST = "azure-asst"
+
 class SyncFlow:
-    transformer_map = {
-        "openai_asst": OpenAIAsstTransformer,
-        "azure_openai_asst": OpenAIAsstTransformer,
+    DEST_TO_TRANSFORMER = {
+        SyncDestType.OPENAI_ASST: OpenAIAsstTransformer,
+        SyncDestType.AZURE_ASST: OpenAIAsstTransformer
     }
-    writer_map = {
-        "openai_asst": OpenAIAsstWriter,
-        "azure_openai_asst": OpenAIAsstWriter
+    DEST_TO_WRITER = {
+        SyncDestType.OPENAI_ASST: OpenAIAsstWriter,
+        SyncDestType.AZURE_ASST: OpenAIAsstWriter
     }
     def __init__(self, yuque_base_url, yuque_namespace, yuque_auth_token, yuque_request_agent, sync_destination_name,
                  file_num_limit,file_token_limit, yuque_repos, **kwargs):
@@ -28,15 +33,19 @@ class SyncFlow:
                                  yuque_auth_token=yuque_auth_token,
                                  yuque_request_agent=yuque_request_agent,
                                  yuque_repos=yuque_repos)
-        assert sync_destination_name in self.transformer_map, f"不支持的同步目标: {sync_destination_name}, 目前支持的同步目标: {self.transformer_map.keys()}"
+        assert sync_destination_name in self.DEST_TO_TRANSFORMER, f"不支持的同步目标: {sync_destination_name}, 目前支持的同步目标: {self.DEST_TO_TRANSFORMER.keys()}"
         # 2. 初始化转换器
-        self.transformer = self.transformer_map[sync_destination_name](file_num_limit=file_num_limit,
-                                                                       file_token_limit=file_token_limit)
+        self.transformer = self.DEST_TO_TRANSFORMER[sync_destination_name](file_num_limit=file_num_limit,
+                                                                           file_token_limit=file_token_limit)
         # 3. 初始化写入器
-        if sync_destination_name in ["azure_openai_asst"]:
-            self.writer = self.writer_map[sync_destination_name](use_azure=True, **kwargs)
+        if sync_destination_name in [SyncDestType.AZURE_ASST]:
+            self.writer = self.DEST_TO_WRITER[sync_destination_name](use_azure=True, **kwargs)
         else:
-            self.writer = self.writer_map[sync_destination_name](**kwargs)
+            self.writer = self.DEST_TO_WRITER[sync_destination_name](**kwargs)
+    def update_sync_config(self,repos):
+        new_repos = [repo for repo in repos if repo not in self.yqreader.repo2tocs_map]
+        # 更新语雀reader
+        self.yqreader.update_tocs_list(new_repos)
 
     def sync_yq_topicdata_to_asst(self, repo: str, toc_title: str, assistant_id: str = None) -> bool:
         """

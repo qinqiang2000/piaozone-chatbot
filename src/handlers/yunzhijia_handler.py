@@ -13,12 +13,9 @@ from pydantic import BaseModel
 import httpcore
 
 from src.utils.logger import logger
-from src.utils.common_utils import (get_assistant_id_by_yzj_token,
-                                parse_img_urls,
-                                remove_html_tags,
-                                get_info_by_yzj_token,
-                                get_yzj_token_and_asst_id_by_yq_info,
-                                get_all_yq_info)
+from src.utils.common_utils import (
+    parse_img_urls,
+    remove_html_tags)
 
 class YJZRobotMsg(BaseModel):
     type: int
@@ -34,12 +31,15 @@ class YJZRobotMsg(BaseModel):
 class YQMsg(BaseModel):
     data: Optional[dict] = None
 
+class AsstMsg(BaseModel):
+    assistant_id: Optional[str] = None
 class YZJHandler:
     HANDLER_TYPE = "yunzhijia"
-    def __init__(self, yunzhijia_notify_url, max_img_num_in_card_notice, card_notice_template_id):
+    def __init__(self, yunzhijia_notify_url, max_img_num_in_card_notice, card_notice_template_id,config_manager):
         self.yunzhijia_notify_url = yunzhijia_notify_url
         self.max_img_num_in_card_notice = max_img_num_in_card_notice
         self.card_notice_template_id = card_notice_template_id
+        self.config_manager = config_manager
 
     def process_message(self, yzj_message: YJZRobotMsg):
         # 处理云之家消息
@@ -137,7 +137,7 @@ class YZJHandler:
         :return:
         """
         success = "成功"
-        repo, toc_title, assistant_id = get_info_by_yzj_token(yzj_token)
+        repo, toc_title, assistant_id = self.config_manager.get_info_by_yzj_token(yzj_token)
         ret = sync_flow.sync_yq_topicdata_to_asst(repo, toc_title, assistant_id)
         if ret:
             logger.info(f"同步知识库'{toc_title}'数据到gpt assistant成功: {assistant_id}")
@@ -161,7 +161,7 @@ class YZJHandler:
             doc_id = msg.data["id"]
             # 获取文档所在的专题库的标题
             toc_title, _ = sync_flow.yqreader.get_topic_title_for_single_doc(repo, doc_id, action_type)
-            yzj_tokens, assistant_id = get_yzj_token_and_asst_id_by_yq_info(repo, toc_title)
+            yzj_tokens, assistant_id = self.config_manager.get_yzj_token_and_asst_id_by_yq_info(repo, toc_title)
             if assistant_id is not None:
                 logger.info(f"语雀知识库'{toc_title}'进行了 '{action_type}' 操作，需要同步至gpt assistant: '{assistant_id}'")
                 # 通知云之家需要开始同步
@@ -183,6 +183,32 @@ class YZJHandler:
                 logger.info(f"语雀知识库'{toc_title}'没有关联的gpt assistant,不需要同步")
         else:
             logger.info(f"文档'{msg.data['title']}'进行了 '{action_type}' 操作，不需要同步")
+    def manual_sync_gpt_assistant(self, sync_flow, assistant_id):
+        """
+        手动同步，同步知识库数据到gpt assistant，同时通知云之家
+        :param sync_flow:
+        :param msg:
+        :return:
+        """
+        repo, toc_title = self.config_manager.get_yq_info_by_asst_id(assistant_id)
+        yzj_tokens, _ = self.config_manager.get_yzj_token_and_asst_id_by_yq_info(repo, toc_title)
+        logger.info(f"语雀知识库'{toc_title}' 需要同步至gpt assistant: '{assistant_id}'")
+        # 通知云之家需要开始同步
+        start_data = {"content": f"开始同步新文档至Assistant,如果有什么问题请同步结束后再提问。@All"}
+        for yzj_token in yzj_tokens:
+            requests.post(self.yunzhijia_notify_url.format(yzj_token), json=start_data)
+        # 同步知识库数据到gpt assistant
+        ret = sync_flow.sync_yq_topicdata_to_asst(repo, toc_title, assistant_id)
+        success = "成功"
+        if ret:
+            logger.info(f"同步知识库'{toc_title}'数据到gpt assistant成功: {assistant_id}")
+        else:
+            success = "失败"
+        # 通知云之家同步结束
+        data = {"content": f"同步最新文档至Assistant{success}。@All"}
+        for yzj_token in yzj_tokens:
+            requests.post(self.yunzhijia_notify_url.format(yzj_token), json=data)
+
 
     def sync_gpt_assistant_scheduler(self, sync_flow):
         """
@@ -191,9 +217,9 @@ class YZJHandler:
         :param msg:
         :return:
         """
-        yq_info = get_all_yq_info()
+        yq_info = self.config_manager.get_all_yq_info()
         for repo, toc_title in yq_info:
-            yzj_tokens, assistant_id = get_yzj_token_and_asst_id_by_yq_info(repo, toc_title)
+            yzj_tokens, assistant_id = self.config_manager.get_yzj_token_and_asst_id_by_yq_info(repo, toc_title)
             # 通知云之家需要开始同步
             start_data = {"content": f"开始同步新文档至Assistant,如果有什么问题请同步结束后再提问。@All"}
             for yzj_token in yzj_tokens:

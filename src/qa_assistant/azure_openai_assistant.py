@@ -20,7 +20,8 @@ class Assistant:
         assistant = self.client.beta.assistants.create(
             name=name,
             instructions=instructions,
-            model=self.deployment_name
+            model=self.deployment_name,
+            tools=[{"type": "retrieval"}]
         )
         self.assistant_id = assistant.id
         return assistant.id
@@ -33,7 +34,6 @@ class Assistant:
         if assistant_files.data:
             return True
         return False
-
     def chat(self, session_id: str, content: str) -> str:
         """
         用户发送消息，调用openai的接口，返回回复
@@ -97,7 +97,18 @@ class Assistant:
             if num_retries > 59:
                 break
         return run
-
+    def process_annotation(self, message_content):
+        annotations = message_content.annotations
+        try:
+            process_content = message_content.value
+            # Iterate over the annotations and add footnotes
+            for index, annotation in enumerate(annotations):
+                # Replace the text with a footnote
+                process_content = process_content.replace(annotation.text, f' ')
+            message_content.value = process_content
+        except:
+            logger.error(f"assistant 返回内容存在问题：{message_content}\n {traceback.format_exc()}")
+        return message_content
     def process_annotation(self, message_content):
         annotations = message_content.annotations
         citations = []
@@ -106,7 +117,7 @@ class Assistant:
             # Iterate over the annotations and add footnotes
             for index, annotation in enumerate(annotations):
                 # Replace the text with a footnote
-                process_content = process_content.replace(annotation.text, f' [{index}]')
+                process_content = process_content.replace(annotation.text, f' ')
 
                 # Gather citations based on annotation attributes
                 if (file_citation := getattr(annotation, 'file_citation', None)):
@@ -115,12 +126,33 @@ class Assistant:
                 elif (file_path := getattr(annotation, 'file_path', None)):
                     cited_file = self.client.files.retrieve(file_path.file_id)
                     citations.append(f'[{index}] 来自 {cited_file.filename}')
-            # Add footnotes to the end of the message before displaying to user
-            process_content += '\n' + '\n'.join(citations)
             message_content.value = process_content
         except:
             logger.error(f"assistant 返回内容存在问题：{message_content}\n {traceback.format_exc()}")
         return message_content
+    # def process_annotation(self, message_content):
+    #     annotations = message_content.annotations
+    #     citations = []
+    #     try:
+    #         process_content = message_content.value
+    #         # Iterate over the annotations and add footnotes
+    #         for index, annotation in enumerate(annotations):
+    #             # Replace the text with a footnote
+    #             process_content = process_content.replace(annotation.text, f' [{index}]')
+    #
+    #             # Gather citations based on annotation attributes
+    #             if (file_citation := getattr(annotation, 'file_citation', None)):
+    #                 cited_file = self.client.files.retrieve(file_citation.file_id)
+    #                 citations.append(f'[{index}] {file_citation.quote}')
+    #             elif (file_path := getattr(annotation, 'file_path', None)):
+    #                 cited_file = self.client.files.retrieve(file_path.file_id)
+    #                 citations.append(f'[{index}] 来自 {cited_file.filename}')
+    #         # Add footnotes to the end of the message before displaying to user
+    #         process_content += '\n' + '\n'.join(citations)
+    #         message_content.value = process_content
+    #     except:
+    #         logger.error(f"assistant 返回内容存在问题：{message_content}\n {traceback.format_exc()}")
+    #     return message_content
 
     def list_files(self):
         assistant_files = self.client.beta.assistants.files.list(
@@ -136,20 +168,19 @@ class Assistant:
         """
         try:
             assistant_files = self.list_files()
+            deleted_id = []
             for file in assistant_files.data:
                 self.client.beta.assistants.files.delete(
                     assistant_id=self.assistant_id,
                     file_id=file.id
                 )
                 self.client.files.delete(file.id)
-
-            deleted_id = list(map(lambda x: x['id'], assistant_files.data))
+                deleted_id.append(file.id)
             logger.info(f"清空assistant文件：{deleted_id}")
             return len(deleted_id)
         except Exception as e:
-            logger.error(f"清空assistant文件失败：{e}")
+            logger.error(f"清空assistant文件失败：{e}.{traceback.format_exc()}")
             return -1
-
     def update_asst_files(self, file_paths):
         """
         更新assistant的文件
@@ -165,7 +196,6 @@ class Assistant:
             file_ids=[file.id for file in assistant_files]
         )
         return assistant_files
-
     def create_file(self, file_path):
         # 上传新文件
         with open(file_path, "rb") as f:
@@ -195,27 +225,27 @@ class Assistant:
             return deleted_assistant_file
         except openai.NotFoundError as e:
             logger.error(f"不存在：{e}")
-
     def del_assistant(self):
-        assistant_files = self.client.beta.assistants.files.list(
-            assistant_id=self.assistant_id,
-            limit=100
-        )
-        for file in assistant_files.data:
-            self.client.beta.assistants.files.delete(assistant_id=self.assistant_id, file_id=file.id)
-            self.client.files.delete(file.id)
-        self.client.beta.assistants.delete(self.assistant_id)
+        try:
+            assistant_files = self.client.beta.assistants.files.list(
+                assistant_id=self.assistant_id,
+                limit=100
+            )
+            for file in assistant_files.data:
+                self.client.beta.assistants.files.delete(assistant_id=self.assistant_id, file_id=file.id)
+                self.client.files.delete(file.id)
+            self.client.beta.assistants.delete(self.assistant_id)
+            logger.info(f"删除助手 {self.assistant_id} 成功")
+            self.assistant_id = None
+        except:
+            logger.error(f"删除助手 {self.assistant_id} 失败")
 
     def del_all_threads(self):
         for session_id in self.thread_map.keys():
             thread_id = self.thread_map.get(session_id)
             self.client.beta.threads.delete(thread_id)
         self.thread_map = {}
-
     def del_thread(self, session_id: str):
         if session_id in self.thread_map:
             thread_id = self.thread_map.pop(session_id)
             self.client.beta.threads.delete(thread_id)
-
-
-

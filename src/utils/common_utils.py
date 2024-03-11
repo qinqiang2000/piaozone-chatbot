@@ -9,69 +9,8 @@ import openpyxl
 import zipfile
 import tiktoken
 
-import config.settings as cfg
+
 from src.utils.logger import logger
-
-config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), cfg.CONFIG_PATH)
-config_data = yaml.load(open(config_path, 'rb'), Loader=yaml.Loader)
-
-
-# 从云之家群token获取assistant_id
-def get_assistant_id_by_yzj_token(yzj_token):
-    for repo, dirs in config_data.items():
-        for info in dirs.values():
-            if yzj_token in info['yzj_token']:
-                return info['gptAssistantId']
-    return None
-
-
-# 从云之家群token获取语雀知识库id、分组title和assistant_id
-def get_info_by_yzj_token(yzj_token):
-    repo, toc_title = get_yq_info_by_yzj_token(yzj_token)
-    asst_id = get_assistant_id_by_yzj_token(yzj_token)
-
-    return repo, toc_title, asst_id
-
-
-# 从云之家群token获取语雀知识库id和分组id
-def get_yq_info_by_yzj_token(yzj_token):
-    for repo, dirs in config_data.items():
-        for toc_title, info in dirs.items():
-            if yzj_token in info['yzj_token']:
-                return repo, toc_title
-    return None, None
-# 基于语雀知识库id和分组title获取云之家群token和assistant_id
-def get_yzj_token_and_asst_id_by_yq_info(repo_name, toc_title_name):
-    for repo, dirs in config_data.items():
-        if repo == repo_name:
-            for toc_title, info in dirs.items():
-                if toc_title == toc_title_name:
-                    return info['yzj_token'], info['gptAssistantId']
-    return None, None
-# 获取所有的语雀知识库id和分组title
-def get_all_yq_info():
-    yq_info = []
-    for repo, dirs in config_data.items():
-        for toc_title in dirs:
-            yq_info.append((repo, toc_title))
-    return yq_info
-def get_all_yq_repo():
-    return list(config_data.keys())
-# 基于助手id获取语雀信息
-def get_yq_info_by_asst_id(asst_id):
-    for repo, dirs in config_data.items():
-        for toc_title, info in dirs.items():
-            if asst_id == info['gptAssistantId']:
-                return repo, toc_title
-    return None, None
-# 获取所有的助手id
-def get_all_asst_id():
-    asst_ids = []
-    for repo, dirs in config_data.items():
-        for toc_title, info in dirs.items():
-            asst_ids.append(info['gptAssistantId'])
-    return asst_ids
-
 
 
 def clear_pd_nan(df):

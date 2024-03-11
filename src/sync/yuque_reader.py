@@ -26,10 +26,10 @@ class YQReader:
         self.YUQUE_AUTH_TOKEN = yuque_auth_token
         self.YUQUE_REQUEST_AGENT = yuque_request_agent
         self.repo2tocs_map = {}
-        self.init_tocs_list(yuque_repos)
-    def init_tocs_list(self,repos:List[str]):
+        self.update_tocs_list(yuque_repos)
+    def update_tocs_list(self,repos:List[str]):
         """
-        初始化知识库的目录树
+        初始化/更新知识库的目录树
         :param repo: 知识库的唯一标识
         :return:
         """

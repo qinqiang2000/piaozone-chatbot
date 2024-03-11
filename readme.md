@@ -25,20 +25,28 @@
 - 在该群启用一个“对话型”机器人，将项目地址填入其接受地址，并将上面token填入，例如：{项目运行地址}/chat?yzj_token=***
 ### 2.2 语雀、云之家群、GPT Assistant的关系配置
 
-在语雀的对应知识库中配置消息推送,webhook地址为 {项目运行地址}/yuque/webhook![](./docs/语雀消息推送配置.png)
+1、在语雀的对应知识库中配置消息推送,webhook地址为 {项目运行地址}/yuque/webhook![](./docs/语雀消息推送配置.png)
 
-在config.yml中配置语雀知识库、云之家群、GPT Assistant的关系，参考如下：
+2、在配置文件所在的语雀知识库中配置消息推送,webhook地址为 {项目运行地址}/yuque/config_update
+
+![](./docs/关系配置推送设置.png)
+
+3、在语雀上配置语雀知识库、云之家群、GPT Assistant的关系：
+
+可修改config/settings.py的CONFIG_REPO、CONFIG_SLUG指定配置文档
+
+参考如下：
 
 ```yaml
-dn5ehb: # 语雀知识库的唯一标识
-  乐企:  # 语雀分的名字；我们以分组为单位进行AI知识库的管理
-    gptAssistantId: "asst_G5t60WEtbD9ygU5n2Ol727N6"
-    yzj_token:  # 云之家的群token(云之家的通知token，支持配多个)
-      - "d29fe265a9594811881e86b7e3d8a1e7"
-      - "123"
+CONFIG_REPO = "kro38t" #配置文件所在知识库id
+CONFIG_SLUG = "en71melffu178kvp" #配置文件的文档slug
 ```
 
-在.env中配置相关key
+配置文档格式如下：
+
+![image-20240311163648095](./docs/关系配置.png)
+
+4、在.env中配置相关key
 
 ```editorconfig
 # openai

@@ -29,9 +29,9 @@ class OpenAIAsstTransformer:
         # 1、将文档拆分为普通文档、表格文档、faq文档
         docs, table_docs, faq_docs = self.split_docs(yuque_docs)
         # 2、保存faq文档
-        faq_paths = self.transform_faq(faq_docs, assistant_id,self.FILE_TOKEN_LIMIT, max_file_num)
-        max_file_num -= len(faq_paths) if faq_paths is not None else 0
-        table_docs_paths = self.transform_table_docs(table_docs, assistant_id,self.FILE_TOKEN_LIMIT, max_file_num)
+        faq_paths = self.transform_faq(faq_docs, assistant_id, self.FILE_TOKEN_LIMIT, max_file_num)
+        max_file_num -= len(faq_paths)
+        table_docs_paths = self.transform_table_docs(table_docs, assistant_id, self.FILE_TOKEN_LIMIT, max_file_num)
         max_file_num -= len(table_docs_paths) if table_docs_paths is not None else 0
         docs_paths = self.transform_docs(docs, assistant_id, max_file_num)
         docs_paths = docs_paths if docs_paths is not None else []
@@ -100,19 +100,20 @@ class OpenAIAsstTransformer:
         :param assistant_id: gpt assistant id
         :return: faq文档的路径
         """
+        faq_paths = []
         if not faq_docs:
             logger.warning("本次同步的知识库文档中没有符合faq规定的相关文档，请检查")
-            return None
+            return faq_paths
         if max_file_num <= 0:
             logger.warning(f"{assistant_id}:文档数量超过限制,请减少文档数量")
-            return None
+            return faq_paths
 
         faq_bodies = [faq_doc["body"] for faq_doc in faq_docs]
         faq_chunks = self.divide_docs_into_chunks(docs=faq_bodies,
                                                      max_tokens_per_file=max_tokens_per_file,
                                                      max_file_num=max_file_num)
 
-        faq_paths = []
+
         if len(faq_chunks) == 1:
             faq_path = os.path.join(self.tmp_dir, f"{assistant_id}/faq.md")
             faq_paths.append(faq_path)
@@ -137,10 +138,10 @@ class OpenAIAsstTransformer:
         """
         if not docs:
             logger.info(f"本次同步的知识库文档中, 没有表格：{assistant_id}")
-            return None
+            return []
         if max_file_num <= 0:
             logger.warning(f"{assistant_id}:文档数量超过限制,请减少文档数量")
-            return None
+            return []
 
         htm_docs = []
         # 将表格文档转换为html格式
@@ -179,10 +180,10 @@ class OpenAIAsstTransformer:
     def transform_docs(self, docs, assistant_id, max_file_num: int):
         if len(docs) == 0:
             logger.warning("语雀文档中没有符合规定的相关文档，请检查")
-            return None
+            return []
         if max_file_num <= 0:
             logger.warning(f"{assistant_id}:文档数量超过限制,请减少文档数量")
-            return None
+            return []
 
         base_path = os.path.join(self.tmp_dir, f"{assistant_id}")
         os.makedirs(os.path.dirname(base_path), exist_ok=True)

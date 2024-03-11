@@ -1,7 +1,7 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from config.settings import *
-from sync.sync_flow import sync_gpt_from_yq
+from src.sync.sync_flow import SyncFlow
 
 scheduler = AsyncIOScheduler()
 

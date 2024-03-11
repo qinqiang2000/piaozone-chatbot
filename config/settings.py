@@ -11,13 +11,12 @@ OPENAI_API_VERSION = os.getenv('OPENAI_API_VERSION')
 AZURE_OPENAI_ENDPOINT = os.getenv('AZURE_OPENAI_ENDPOINT')
 OPENAI_DEPLOYMENT_NAME = os.getenv('OPENAI_DEPLOYMENT_NAME')
 USE_AZURE_OPENAI = False
-if AZURE_OPENAI_API_KEY is None or AZURE_OPENAI_ENDPOINT is None or OPENAI_DEPLOYMENT_NAME is None:
-    USE_AZURE_OPENAI = False
 #2. 读取配置文件
 
 ## 语雀知识库、ai助手、云之家群关系的配置地址
-CONFIG_PATH = "config/config.yml"
-
+# CONFIG_PATH = "config/config.yml"
+CONFIG_REPO = "kro38t" #配置文件所在知识库id
+CONFIG_SLUG = "en71melffu178kvp" #配置文件的文档slug
 ## 云之家通知地址
 YUNZHIJIA_NOTIFY_URL = "https://www.yunzhijia.com/gateway/robot/webhook/send?yzjtype=0&yzjtoken={}"
 ## 云之家每张卡片消息最大图片数
@@ -36,10 +35,8 @@ PIAOZONE_TOKEN_BODY = "U5/yFNQySPUsjrHqSDUFl58fJ7OxHT8W4KWJqK4tLd/ze1/IIFtmActge
 PIAOZONE_ADD_SOBOT_DOC_URL = "https://api-dev.piaozone.com/test/portal/m19/customer-service/sobot-doc/with-yuque-slug?access_token="
 
 ## 问答助手配置
-if USE_AZURE_OPENAI:
-    ASSISTANT_NAME = "azure_openai_asst"
-else:
-    ASSISTANT_NAME = "openai_asst"
+# 同步的目的地类型 ： "openai-asst", "azure-asst"
+SYNC_DEST_TYPE = ["openai-asst"]
 # assistant 文件限制
 ASSISTANT_FILE_NUM_LIMIT = 20
 ASSISTANT_FILE_TOKEN_LIMIT = 2000000

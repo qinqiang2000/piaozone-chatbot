@@ -67,9 +67,10 @@ class Assistant:
             if message_content.annotations:
                 message_content = self.process_annotation(message_content)
             return message_content.value
-        logger.debug(f"[{session_id}]: {run.status}")
         if run.status == "failed":
-            logger.error(f"{run.status}. 明细:\n{run.last_error.message}")
+            logger.error(f"[{session_id}]:状态：{run.status}. 明细:\n{run.last_error.message}")
+        else:
+            logger.error(f"[{session_id}]:状态：{run.status}.")
         return None
 
     def __wait_on_run(self, run: Run, session_id: str) -> Run:
@@ -96,13 +97,25 @@ class Assistant:
         return run
     def process_annotation(self, message_content):
         annotations = message_content.annotations
+        try:
+            process_content = message_content.value
+            # Iterate over the annotations and add footnotes
+            for index, annotation in enumerate(annotations):
+                # Replace the text with a footnote
+                process_content = process_content.replace(annotation.text, f' ')
+            message_content.value = process_content
+        except:
+            logger.error(f"assistant 返回内容存在问题：{message_content}\n {traceback.format_exc()}")
+        return message_content
+    def process_annotation(self, message_content):
+        annotations = message_content.annotations
         citations = []
         try:
             process_content = message_content.value
             # Iterate over the annotations and add footnotes
             for index, annotation in enumerate(annotations):
                 # Replace the text with a footnote
-                process_content = process_content.replace(annotation.text, f' [{index}]')
+                process_content = process_content.replace(annotation.text, f' ')
 
                 # Gather citations based on annotation attributes
                 if (file_citation := getattr(annotation, 'file_citation', None)):
@@ -111,12 +124,33 @@ class Assistant:
                 elif (file_path := getattr(annotation, 'file_path', None)):
                     cited_file = self.client.files.retrieve(file_path.file_id)
                     citations.append(f'[{index}] 来自 {cited_file.filename}')
-            # Add footnotes to the end of the message before displaying to user
-            process_content += '\n' + '\n'.join(citations)
             message_content.value = process_content
         except:
             logger.error(f"assistant 返回内容存在问题：{message_content}\n {traceback.format_exc()}")
         return message_content
+    # def process_annotation(self, message_content):
+    #     annotations = message_content.annotations
+    #     citations = []
+    #     try:
+    #         process_content = message_content.value
+    #         # Iterate over the annotations and add footnotes
+    #         for index, annotation in enumerate(annotations):
+    #             # Replace the text with a footnote
+    #             process_content = process_content.replace(annotation.text, f' [{index}]')
+    #
+    #             # Gather citations based on annotation attributes
+    #             if (file_citation := getattr(annotation, 'file_citation', None)):
+    #                 cited_file = self.client.files.retrieve(file_citation.file_id)
+    #                 citations.append(f'[{index}] {file_citation.quote}')
+    #             elif (file_path := getattr(annotation, 'file_path', None)):
+    #                 cited_file = self.client.files.retrieve(file_path.file_id)
+    #                 citations.append(f'[{index}] 来自 {cited_file.filename}')
+    #         # Add footnotes to the end of the message before displaying to user
+    #         process_content += '\n' + '\n'.join(citations)
+    #         message_content.value = process_content
+    #     except:
+    #         logger.error(f"assistant 返回内容存在问题：{message_content}\n {traceback.format_exc()}")
+    #     return message_content
 
     def list_files(self):
         assistant_files = self.client.beta.assistants.files.list(

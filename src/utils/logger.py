@@ -9,7 +9,7 @@ from config.settings import LOG_DIR
 LOG_CONF = {
     "name":__name__,
     "log_dir":LOG_DIR,
-    "level": "debug",
+    "level": "info",
     # "formatter": "%(asctime)s.%(msecs)d [] [%(thread)d] %(levelname)s %(filename)s-%(funcName)s-%(message)s",
     "formatter": "[%(asctime)s %(filename)s:%(lineno)d] %(levelname)s: %(message)s",
     "when": "midnight",

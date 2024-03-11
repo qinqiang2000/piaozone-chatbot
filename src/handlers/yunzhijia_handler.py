@@ -112,7 +112,7 @@ class YZJHandler:
             answer = qa_assistant.chat(session_id, msg.content)
             if answer:
                 output = answer
-        except httpcore.ConnectTimeout:
+        except:
             logger.error(f"大模型响应超时，session_id: {session_id}")
         logger.info(f"{session_id}: {msg.operatorOpenid} --> {output} ]")
         # 先截取图片url

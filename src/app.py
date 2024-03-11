@@ -148,7 +148,7 @@ class App(FastAPI):
         result = {"success": True}
         return JSONResponse(content=result)
 
-    async def force_sync(self, assistant_id: str = Query(...)):
+    async def force_sync(self, task: BackgroundTasks, assistant_id: str = Query(...)):
         if assistant_id not in self.config_manager.get_all_asst_id() or not assistant_id:
             logger.error(f"不存在assistant_id '{assistant_id}'，请重新输入")
             result = {"success": False, "description": f"不存在assistant_id '{assistant_id}'，请重新输入"}

@@ -42,6 +42,7 @@ class SyncFlow:
             self.writer = self.DEST_TO_WRITER[sync_destination_name](use_azure=True, **kwargs)
         else:
             self.writer = self.DEST_TO_WRITER[sync_destination_name](**kwargs)
+        logger.info(f"语雀到 {sync_destination_name} 的同步流程初始化成功")
     def update_sync_config(self,repos):
         new_repos = [repo for repo in repos if repo not in self.yqreader.repo2tocs_map]
         # 更新语雀reader

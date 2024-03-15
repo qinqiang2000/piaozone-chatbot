@@ -40,6 +40,7 @@ class YZJHandler:
         self.max_img_num_in_card_notice = max_img_num_in_card_notice
         self.card_notice_template_id = card_notice_template_id
         self.config_manager = config_manager
+        logger.info(f"云之家处理器的初始化成功")
 
     def process_message(self, yzj_message: YJZRobotMsg):
         # 处理云之家消息
@@ -209,30 +210,4 @@ class YZJHandler:
         for yzj_token in yzj_tokens:
             requests.post(self.yunzhijia_notify_url.format(yzj_token), json=data)
 
-
-    def sync_gpt_assistant_scheduler(self, sync_flow):
-        """
-        定期同步知识库数据到gpt assistant，同时通知云之家
-        :param sync_flow:
-        :param msg:
-        :return:
-        """
-        yq_info = self.config_manager.get_all_yq_info()
-        for repo, toc_title in yq_info:
-            yzj_tokens, assistant_id = self.config_manager.get_yzj_token_and_asst_id_by_yq_info(repo, toc_title)
-            # 通知云之家需要开始同步
-            start_data = {"content": f"开始同步新文档至Assistant,如果有什么问题请同步结束后再提问。@All"}
-            for yzj_token in yzj_tokens:
-                requests.post(self.yunzhijia_notify_url.format(yzj_token), json=start_data)
-            # 同步知识库数据到gpt assistant
-            ret = sync_flow.sync_yq_topicdata_to_asst(repo, toc_title, assistant_id)
-            success = "成功"
-            if ret:
-                logger.info(f"同步知识库'{toc_title}'数据到gpt assistant成功: {assistant_id}")
-            else:
-                success = "失败"
-            # 通知云之家同步结束
-            data = {"content": f"同步最新文档至Assistant{success}。@All"}
-            for yzj_token in yzj_tokens:
-                requests.post(self.yunzhijia_notify_url.format(yzj_token), json=data)
 

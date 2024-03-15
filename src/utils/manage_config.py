@@ -24,6 +24,7 @@ class ConfigManager:
         self.use_azure = use_azure
         self.config_data = []
         self.init_config()
+        logger.info("配置信息初始化成功")
     def process_config(self,config_doc):
         sheet = json.loads(config_doc['body_sheet'])['data'][0]
         table = sheet['table']
@@ -75,7 +76,7 @@ class ConfigManager:
             del_repo = set(old_repo_list) - set(new_repo_list)
             add_asst = set(new_asst_list) - set(old_asst_list)
             del_asst = set(old_asst_list) - set(new_asst_list)
-            logger.info("配置更新成功")
+            logger.info(f"配置更新成功")
             return add_repo, del_repo, add_asst, del_asst
         except:
             logger.error("无法更新配置信息，请重新更新")

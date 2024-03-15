@@ -93,7 +93,7 @@ class ConfigManager:
             response.raise_for_status()
             return json.loads(response.text)["data"]
         except requests.exceptions.RequestException as e:
-            logger.error(f"请求获取配置文档 {url} 失败: {str(e)}")
+            logger.error(f"请求获取配置文档 {self.config_url} 失败: {str(e)}")
             raise Exception("请求获取配置文档失败")
 
     def get_assistant_id_by_yzj_token(self,yzj_token):

@@ -67,7 +67,7 @@ class App(FastAPI):
 
         # 5、添加定时任务,每周6 2点触发定时任务
         self.scheduler = AsyncIOScheduler()
-        self.scheduler.add_job(self.scheduler_sync, 'cron', day_of_week='sat', hour=2)
+        self.scheduler.add_job(self.scheduler_sync, 'cron', day_of_week='mon', hour=11)
         self.scheduler.start()
 
         # 6、初始化定时同步锁
@@ -299,5 +299,9 @@ class App(FastAPI):
 if __name__ == "__main__":
     import uvicorn
 
+    log_config = uvicorn.config.LOGGING_CONFIG
+    log_config["formatters"]["access"]["fmt"] = "[%(asctime)s %(filename)s:%(lineno)d] %(levelname)s: %(message)s"
+    log_config["formatters"]["default"]["fmt"] = "[%(asctime)s %(filename)s:%(lineno)d] %(levelname)s: %(message)s"
+
     app = App()
-    uvicorn.run(app, host="0.0.0.0", port=9999)
+    uvicorn.run(app, host="0.0.0.0", port=9999, log_config=log_config)

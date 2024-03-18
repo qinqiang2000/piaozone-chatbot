@@ -222,14 +222,30 @@ class App(FastAPI):
             logger.error(f"{assistant_id} 助手同步失败：{e}.{traceback.format_exc()}")
             return JSONResponse(content=result)
 
+    async def async_manual_sync(self, assistant_id):
+        """
+        定时同步: 包装同步函数为异步函数
+        """
+        try:
+            result = await asyncio.get_running_loop().run_in_executor(
+                None, self.yzjhandler.manual_sync_gpt_assistant, self.asst_sync_flow, assistant_id
+            )
+        except Exception as e:
+            logger.error(f"同步助手 '{assistant_id}' 失败：{e}")
+
     async def scheduler_sync(self):
         logger.info("开始执行定时任务")
-        background_tasks = BackgroundTasks()
+        tasks = []
+        semaphore = asyncio.Semaphore(10)   # 设置并发执行的任务数量
         for assistant_id in self.config_manager.get_all_asst_id():
             if not assistant_id:
                 logger.warning(f"不存在assistant_id '{assistant_id}'")
             else:
-                background_tasks.add_task(self.yzjhandler.manual_sync_gpt_assistant, self.asst_sync_flow, assistant_id)
+                async with semaphore:
+                    task = asyncio.create_task(self.async_manual_sync(assistant_id))
+                    tasks.append(task)
+        # 等待所有后台任务完成
+        await asyncio.gather(*tasks, return_exceptions=True)
         logger.info("定时任务结束")
     async def startup_tasks(self):
         """

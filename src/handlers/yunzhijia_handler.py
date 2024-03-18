@@ -209,5 +209,6 @@ class YZJHandler:
         data = {"content": f"同步最新文档至Assistant{success}。@All"}
         for yzj_token in yzj_tokens:
             requests.post(self.yunzhijia_notify_url.format(yzj_token), json=data)
+        return success
 
 

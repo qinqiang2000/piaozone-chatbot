@@ -66,17 +66,13 @@ class App(FastAPI):
         self.init_asst()
 
         # 5、添加定时任务,每周6 2点触发定时任务
-        self.scheduler = AsyncIOScheduler()
-        self.scheduler.add_job(self.scheduler_sync, 'cron', day_of_week='mon', hour=11)
-        self.scheduler.start()
-
+        self.add_event_handler("startup", self.startup_tasks)
+        self.add_event_handler("shutdown", self.shutdown_tasks)
         # 6、初始化定时同步锁
         # self.pending_syncs_lock = asyncio.Lock()
         # self.pending_syncs = set()
 
         # 7、添加 api_route
-        self.add_event_handler("shutdown", self.shutdown_tasks)
-
         self.add_api_route("/chat", self.yzj_fpy_chat, methods=["POST"])
         # self.add_api_route("/yuque/webhook", self.yuque_sync_info_update, methods=["POST"])
         self.add_api_route("/yuque/config_update", self.yuque_update_config, methods=["POST"])
@@ -245,6 +241,14 @@ class App(FastAPI):
             except Exception as e:
                 logger.error(f"同步失败: {e}")
         logger.info("定时任务结束")
+    async def startup_tasks(self):
+        """
+        在结束时同步并关闭定时器
+        """
+        self.scheduler = AsyncIOScheduler()
+        self.scheduler.add_job(self.scheduler_sync, 'cron', day_of_week='mon', hour=15)
+        self.scheduler.start()
+        logger.info("设置定时同步任务成功")
     async def shutdown_tasks(self):
         """
         在结束时同步并关闭定时器

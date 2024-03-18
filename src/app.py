@@ -224,29 +224,19 @@ class App(FastAPI):
 
     async def scheduler_sync(self):
         logger.info("开始执行定时任务")
-        tasks = []
+        background_tasks = BackgroundTasks()
         for assistant_id in self.config_manager.get_all_asst_id():
             if not assistant_id:
                 logger.warning(f"不存在assistant_id '{assistant_id}'")
             else:
-                task = asyncio.create_task(self.yzjhandler.manual_sync_gpt_assistant(self.asst_sync_flow, assistant_id))
-                tasks.append(task)
-        # 等待所有任务完成
-        await asyncio.gather(*tasks, return_exceptions=True)
-
-        # 处理异常
-        for task in tasks:
-            try:
-                task.result()
-            except Exception as e:
-                logger.error(f"同步失败: {e}")
+                background_tasks.add_task(self.yzjhandler.manual_sync_gpt_assistant, self.asst_sync_flow, assistant_id)
         logger.info("定时任务结束")
     async def startup_tasks(self):
         """
         在结束时同步并关闭定时器
         """
         self.scheduler = AsyncIOScheduler()
-        self.scheduler.add_job(self.scheduler_sync, 'cron', day_of_week='mon', hour=15)
+        self.scheduler.add_job(self.scheduler_sync, 'cron', day_of_week='sat', hour=2)
         self.scheduler.start()
         logger.info("设置定时同步任务成功")
     async def shutdown_tasks(self):

@@ -86,8 +86,11 @@ class App(FastAPI):
         all_asst_ids = self.config_manager.get_all_asst_id()
         for asst_id in all_asst_ids:
             try:
-                self.get_assistant(asst_id)
-                logger.info(f"初始化assistant '{asst_id}' 成功")
+                asst = self.get_assistant(asst_id)
+                if asst is not None:
+                    logger.info(f"初始化assistant '{asst_id}' 成功")
+                else:
+                    logger.info(f"同步不成功，初始化assistant '{asst_id}' 失败")
             except Exception as e:
                 logger.error(f"初始化assistant '{asst_id}' 失败：{e}")
     def get_openai_assistant(self,assistant_id: str):
@@ -99,6 +102,9 @@ class App(FastAPI):
                 logger.info(f"assistant '{assistant_id}' 不存在文件，开始同步文件")
                 repo, toc_title = self.config_manager.get_yq_info_by_asst_id(assistant_id)
                 ret = self.asst_sync_flow.sync_yq_topicdata_to_asst(repo, toc_title, assistant_id)
+                # 如果同步失败：
+                if not ret:
+                    return None
         return self.assistants[assistant_id]
     def get_azure_openai_assistant(self,assistant_id: str):
         from src.qa_assistant.azure_openai_assistant import Assistant
@@ -111,6 +117,9 @@ class App(FastAPI):
                 repo, toc_title = self.config_manager.get_yq_info_by_asst_id(assistant_id)
                 logger.info(f"assistant '{assistant_id}' 不存在文件，开始同步专题库 '{toc_title}' 的文件")
                 ret = self.asst_sync_flow.sync_yq_topicdata_to_asst(repo, toc_title, assistant_id)
+                # 如果同步失败：
+                if not ret:
+                    return None
         return self.assistants[assistant_id]
     def update_config(self) -> None:
         """更新配置"""
@@ -122,8 +131,11 @@ class App(FastAPI):
                 self.asst_sync_flow.update_sync_config(add_repo)
             if add_asst:
                 for asst_id in add_asst:
-                    self.get_assistant(asst_id)
-                    logger.info(f"初始化assistant '{asst_id}' 成功")
+                    asst = self.get_assistant(asst_id)
+                    if asst is not None:
+                        logger.info(f"初始化assistant '{asst_id}' 成功")
+                    else:
+                        logger.info(f"同步不成功，初始化assistant '{asst_id}' 失败")
         except Exception as e:
             logger.error(f"配置更新失败：{e}.{traceback.format_exc()}")
     async def yzj_fpy_chat(self,request: Request, msg: YJZRobotMsg,

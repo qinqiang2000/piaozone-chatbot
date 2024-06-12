@@ -54,31 +54,30 @@ class BaseHandler:
         :param msg:
         :return:
         """
-        assistant_id = msg_dict['assistant_id']
-        qa_assistant = BaseHandler.assistans.get(assistant_id,None)
-        if qa_assistant is None:
-            return "没有输入有效的assistant_id"
+        output = "抱歉，大模型响应超时，请稍后再试"
+        try:
+            assistant_id = msg_dict['assistant_id']
+            qa_assistant = BaseHandler.assistans.get(assistant_id,None)
+            if qa_assistant is None:
+                return "没有输入有效的assistant_id"
 
-        if not msg_dict.get('session_id',None):
-            session_id = BaseHandler.generate_random_string(10)
-        else:
-            session_id = msg_dict['session_id']
-        content = BaseHandler.process_message(msg_dict['content'])
-        return content
-        # output = "抱歉，大模型响应超时，请稍后再试"
-        # try:
-        #     if not content:
-        #         output = "抱歉，输入内容为空，请输入有效内容"
-        #     else:
-        #         answer = qa_assistant.chat(session_id, content)
-        #         if answer:
-        #             output = answer
-        # except:
-        #     logger.error(f"大模型响应超时，session_id: {session_id}")
-        # logger.info(f"[session_id={session_id}]--> {output}")
-        # # 去掉html标签
-        # output = remove_html_tags(output)
-        # return output
+            if not msg_dict.get('session_id',None):
+                session_id = BaseHandler.generate_random_string(10)
+            else:
+                session_id = msg_dict['session_id']
+            content = BaseHandler.process_message(msg_dict['content'])
+            if not content:
+                output = "抱歉，输入内容为空，请输入有效内容"
+            else:
+                answer = qa_assistant.chat(session_id, content)
+                if answer:
+                    output = answer
+        except:
+            logger.error(f"大模型响应超时，session_id: {session_id}")
+        logger.info(f"[session_id={session_id}]--> {output}")
+        # 去掉html标签
+        output = remove_html_tags(output)
+        return output
 
 
 

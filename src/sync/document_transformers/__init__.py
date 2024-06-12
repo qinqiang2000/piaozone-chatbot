@@ -6,4 +6,4 @@
 # @Desc    : 
 ===========================
 """
-from src.sync.document_transformers.openai_asst_tranform import OpenAIAsstTransformer
+from src.sync.document_transformers.openai_asst_transform import OpenAIAsstTransformer

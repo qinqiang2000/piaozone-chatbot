@@ -1,43 +1,13 @@
-import logging
-import re
 import os
 import shutil
-import yaml
 
 import pandas as pd
 import openpyxl
 import zipfile
 import tiktoken
 
-
 from src.utils.logger import logger
 
-
-def clear_pd_nan(df):
-    # 删除df的空行
-    df.replace('', pd.NA, inplace=True)
-    df.dropna(how='all', inplace=True)
-    df.replace(pd.NA, '', inplace=True)
-
-
-def remove_html_tags(text):
-    # 定义HTML标签的正则表达式
-    html_tags_pattern = re.compile(r'<[^>]+>')
-
-    # 使用正则表达式移除所有HTML标签
-    return html_tags_pattern.sub('', text)
-
-
-def parse_img_urls(text):
-    """
-    截取所有图片url（后缀为jpg|jpeg|png|gif）
-    :param text:
-    :return:
-    """
-    img_urls = re.findall(
-        "http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+\.(?:jpg|jpeg|png|gif)",
-        text)
-    return img_urls
 
 
 def zip_folder(folder_path):

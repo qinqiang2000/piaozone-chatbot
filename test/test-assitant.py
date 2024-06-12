@@ -45,8 +45,8 @@ def test_assistant():
     print(f"是否存在文件：{assistant.check_asst_file()}")
     try:
         # 测试添加文件
-        file_path = "../docs/faq.md"
-        assistant.create_file(file_path)
+        file_paths = ["../docs/faq.md"]
+        assistant.create_vs(file_paths)
         # 测试对话
         session_id = "test_session_id"
         question = "怎么申请乐企？"

@@ -5,11 +5,11 @@ import time
 import datetime
 import shutil
 
-from config.settings import LOG_DIR
+from config.settings import LOG_DIR,LOG_LEVEL
 LOG_CONF = {
     "name":__name__,
     "log_dir":LOG_DIR,
-    "level": "info",
+    "level": LOG_LEVEL,
     # "formatter": "%(asctime)s.%(msecs)d [] [%(thread)d] %(levelname)s %(filename)s-%(funcName)s-%(message)s",
     "formatter": "[%(asctime)s %(filename)s:%(lineno)d] %(levelname)s: %(message)s",
     "when": "midnight",

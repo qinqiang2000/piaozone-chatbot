@@ -1,4 +1,5 @@
-openai
+openai==1.33.0
+celery
 openpyxl
 numpy
 tiktoken
@@ -15,3 +16,10 @@ python-multipart
 bs4
 httpcore
 pyyaml
+langchain
+weaviate-client
+unstructured
+langchain-community==0.0.32
+langchain-core==0.1.42
+langchain_openai
+pypinyin

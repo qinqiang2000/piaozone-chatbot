@@ -12,12 +12,13 @@ import requests
 from pydantic import BaseModel
 import httpcore
 
+from qa_assistant.base_assistant import BaseAssistant
 from src.utils.logger import logger
-from src.utils.common_utils import (
+from src.utils.data_process import (
     parse_img_urls,
     remove_html_tags)
 
-class YJZRobotMsg(BaseModel):
+class YZJRobotMsg(BaseModel):
     type: int
     robotId: Optional[str] = None
     robotName: Optional[str] = None
@@ -31,20 +32,20 @@ class YJZRobotMsg(BaseModel):
 class YQMsg(BaseModel):
     data: Optional[dict] = None
 
-class AsstMsg(BaseModel):
-    assistant_id: Optional[str] = None
+
 class YZJHandler:
     HANDLER_TYPE = "yunzhijia"
-    def __init__(self, yunzhijia_notify_url, max_img_num_in_card_notice, card_notice_template_id,config_manager):
-        self.yunzhijia_notify_url = yunzhijia_notify_url
-        self.max_img_num_in_card_notice = max_img_num_in_card_notice
-        self.card_notice_template_id = card_notice_template_id
+    def __init__(self, yunzhijia_config, config_manager):
+        self.yunzhijia_notify_url = yunzhijia_config["notify_url"]
+        self.max_img_num_in_card_notice = yunzhijia_config["max_img_num_in_card_notice"]
+        self.card_notice_template_id = yunzhijia_config["card_notice_template_id"]
         self.config_manager = config_manager
         logger.info(f"云之家处理器的初始化成功")
 
-    def process_message(self, yzj_message: YJZRobotMsg):
+    def process_message(self, yzj_message: YZJRobotMsg):
         # 处理云之家消息
         # 取yzj_message.content第一个空格之后的消息
+        logger.info(f"[{yzj_message.robotId}~{yzj_message.operatorOpenid}]:未处理前消息： {yzj_message.content}")
         yzj_message.content = " ".join(yzj_message.content.split()[1:])
         # 去除yzj_message.content中的前后空格
         yzj_message.content = yzj_message.content.strip()
@@ -99,7 +100,7 @@ class YZJHandler:
                 data_content[f"bigImage{j}Url"] = img_url
         return data_content
 
-    def chat_doc(self, qa_assistant, yzj_token, msg: YJZRobotMsg):
+    def chat_doc(self, qa_assistant, yzj_token, msg: YZJRobotMsg):
         """
         调用问答助手获取答案
         :param qa_assistant:
@@ -110,12 +111,15 @@ class YZJHandler:
         output = "抱歉，大模型响应超时，请稍后再试"
         session_id = msg.sessionId
         try:
-            answer = qa_assistant.chat(session_id, msg.content)
-            if answer:
-                output = answer
+            if not msg.content.strip():
+                output = "抱歉，输入内容为空，请输入有效内容"
+            else:
+                answer = qa_assistant.chat(session_id, msg.content)
+                if answer:
+                    output = answer
         except:
             logger.error(f"大模型响应超时，session_id: {session_id}")
-        logger.info(f"{session_id}: {msg.operatorOpenid} --> {output} ]")
+        logger.info(f"[{session_id}: {msg.operatorOpenid}] --> {output} ")
         # 先截取图片url
         img_urls = parse_img_urls(output)
         # 去掉html标签
@@ -129,17 +133,19 @@ class YZJHandler:
         if img_urls:
             self.send_yzj_card_notice(yzj_token, img_urls, msg.operatorOpenid)
 
-    def sync_gpt_assistant_on_yzj(self, sync_flow, yzj_token, msg: YJZRobotMsg):
+    def sync_gpt_assistant_on_yzj(self, sync_flow, yzj_token, assistant: BaseAssistant, msg: YZJRobotMsg):
         """
         基于云之家的消息，同步知识库数据到gpt assistant，同时通知云之家
         :param sync_flow:
         :param yzj_token:
+        :param assistant:
         :param msg:
         :return:
         """
         success = "成功"
         repo, toc_title, assistant_id = self.config_manager.get_info_by_yzj_token(yzj_token)
-        ret = sync_flow.sync_yq_topicdata_to_asst(repo, toc_title, assistant_id)
+
+        ret = sync_flow.sync_yq_doc_to_dest(repo, toc_title, assistant)
         if ret:
             logger.info(f"同步知识库'{toc_title}'数据到gpt assistant成功: {assistant_id}")
         else:
@@ -148,58 +154,23 @@ class YZJHandler:
         data = {"content": f"同步最新文档至Assistant{success}",
                 "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
         requests.post(self.yunzhijia_notify_url.format(yzj_token), json=data)
-    def sync_gpt_assistant_on_yq(self, sync_flow, msg: YQMsg):
-        """
-        基于语雀的更新通知，同步知识库数据到gpt assistant，同时通知云之家
-        :param sync_flow:
-        :param msg:
-        :return:
-        """
-        action_type = msg.data.get("action_type")
-        if action_type in ["publish", "update", "delete"]:
-            repo = msg.data["book"]["slug"]
-            doc_slug = msg.data["slug"]
-            doc_id = msg.data["id"]
-            # 获取文档所在的专题库的标题
-            toc_title, _ = sync_flow.yqreader.get_topic_title_for_single_doc(repo, doc_id, action_type)
-            yzj_tokens, assistant_id = self.config_manager.get_yzj_token_and_asst_id_by_yq_info(repo, toc_title)
-            if assistant_id is not None:
-                logger.info(f"语雀知识库'{toc_title}'进行了 '{action_type}' 操作，需要同步至gpt assistant: '{assistant_id}'")
-                # 通知云之家需要开始同步
-                start_data = {"content": f"开始同步新文档至Assistant,如果有什么问题请同步结束后再提问。@All"}
-                for yzj_token in yzj_tokens:
-                    requests.post(self.yunzhijia_notify_url.format(yzj_token), json=start_data)
-                # 同步知识库数据到gpt assistant
-                ret = sync_flow.sync_yq_topicdata_to_asst(repo, toc_title, assistant_id)
-                success = "成功"
-                if ret:
-                    logger.info(f"同步知识库'{toc_title}'数据到gpt assistant成功: {assistant_id}")
-                else:
-                    success = "失败"
-                # 通知云之家同步结束
-                data = {"content": f"同步最新文档至Assistant{success}。@All"}
-                for yzj_token in yzj_tokens:
-                    requests.post(self.yunzhijia_notify_url.format(yzj_token), json=data)
-            else:
-                logger.info(f"语雀知识库'{toc_title}'没有关联的gpt assistant,不需要同步")
-        else:
-            logger.info(f"文档'{msg.data['title']}'进行了 '{action_type}' 操作，不需要同步")
-    def manual_sync_gpt_assistant(self, sync_flow, assistant_id):
+    def manual_sync_gpt_assistant(self, sync_flow, assistant):
         """
         手动同步，同步知识库数据到gpt assistant，同时通知云之家
         :param sync_flow:
         :param msg:
         :return:
         """
+        assistant_id = assistant.assistant_id
         repo, toc_title = self.config_manager.get_yq_info_by_asst_id(assistant_id)
-        yzj_tokens, _ = self.config_manager.get_yzj_token_and_asst_id_by_yq_info(repo, toc_title)
+        yzj_tokens = self.config_manager.get_yzj_token_by_asst_id(assistant_id)
         logger.info(f"语雀知识库'{toc_title}' 需要同步至gpt assistant: '{assistant_id}'")
         # 通知云之家需要开始同步
         start_data = {"content": f"开始同步新文档至Assistant,如果有什么问题请同步结束后再提问。@All"}
         for yzj_token in yzj_tokens:
             requests.post(self.yunzhijia_notify_url.format(yzj_token), json=start_data)
         # 同步知识库数据到gpt assistant
-        ret = sync_flow.sync_yq_topicdata_to_asst(repo, toc_title, assistant_id)
+        ret = sync_flow.sync_yq_doc_to_dest(repo, toc_title, assistant)
         success = "成功"
         if ret:
             logger.info(f"同步知识库'{toc_title}'数据到gpt assistant成功: {assistant_id}")

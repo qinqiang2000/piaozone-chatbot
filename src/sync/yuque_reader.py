@@ -20,11 +20,12 @@ from typing import List
 from src.utils.logger import logger
 
 class YQReader:
-    def __init__(self, yuque_base_url, yuque_namespace, yuque_auth_token, yuque_request_agent, yuque_repos):
-        self.YUQUE_BASE_URL = yuque_base_url
-        self.YUQUE_NAMESPACE = yuque_namespace
-        self.YUQUE_AUTH_TOKEN = yuque_auth_token
-        self.YUQUE_REQUEST_AGENT = yuque_request_agent
+    def __init__(self, yuque_config, yuque_repos):
+        self.YUQUE_BASE_URL = yuque_config["yuque_base_url"]
+        self.YUQUE_NAMESPACE = yuque_config["yuque_namespace"]
+        self.YUQUE_AUTH_TOKEN = yuque_config["yuque_auth_token"]
+        self.YUQUE_REQUEST_AGENT = yuque_config["yuque_request_agent"]
+        self.YUQUE_ACCESS_BASE_URL = yuque_config['yuque_access_base_url']
         self.repo2tocs_map = {}
         self.update_tocs_list(yuque_repos)
     def update_tocs_list(self,repos:List[str]):
@@ -198,3 +199,5 @@ class YQReader:
         except requests.exceptions.RequestException as e:
             logger.error(f"请求获取单个语雀文档 {url} 失败: {str(e)}")
             raise Exception("请求获取单个语雀文档失败")
+    def get_access_base_url(self,repo: str):
+        return f"{self.YUQUE_ACCESS_BASE_URL}/{self.YUQUE_NAMESPACE}/{repo}"

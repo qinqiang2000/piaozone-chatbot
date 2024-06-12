@@ -166,7 +166,7 @@ class YZJHandler:
         yzj_tokens = self.config_manager.get_yzj_token_by_asst_id(assistant_id)
         logger.info(f"语雀知识库'{toc_title}' 需要同步至gpt assistant: '{assistant_id}'")
         # 通知云之家需要开始同步
-        start_data = {"content": f"开始同步新文档至Assistant,如果有什么问题请同步结束后再提问。@All"}
+        start_data = {"content": f"开始同步新文档至Assistant,如果有什么问题请同步结束后再提问。"}
         for yzj_token in yzj_tokens:
             requests.post(self.yunzhijia_notify_url.format(yzj_token), json=start_data)
         # 同步知识库数据到gpt assistant
@@ -177,7 +177,7 @@ class YZJHandler:
         else:
             success = "失败"
         # 通知云之家同步结束
-        data = {"content": f"同步最新文档至Assistant{success}。@All"}
+        data = {"content": f"同步最新文档至Assistant{success}。"}
         for yzj_token in yzj_tokens:
             requests.post(self.yunzhijia_notify_url.format(yzj_token), json=data)
         return success

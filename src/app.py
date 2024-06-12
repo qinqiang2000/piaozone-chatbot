@@ -64,8 +64,8 @@ class App(FastAPI):
         self.add_api_route("/get_config", self.get_config, methods=["GET"])
 
         #test
-        self.add_api_route("/test/chat/run", self.simple_chat, methods=["POST"])
-        self.add_api_route("/test/chat/retrieve", self.check_simple_chat, methods=["POST"])
+        # self.add_api_route("/test/chat/run", self.simple_chat, methods=["POST"])
+        # self.add_api_route("/test/chat/retrieve", self.check_simple_chat, methods=["POST"])
 
     def init_asst(self) -> None:
         """初始化assistants"""
@@ -286,7 +286,7 @@ class App(FastAPI):
         """
         初始化定时任务
         """
-        threading.Thread(target=start_celery, daemon=True).start()
+        # threading.Thread(target=start_celery, daemon=True).start()
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
         self.scheduler.start()

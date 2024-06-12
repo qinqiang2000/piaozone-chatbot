@@ -64,20 +64,21 @@ class BaseHandler:
         else:
             session_id = msg_dict['session_id']
         content = BaseHandler.process_message(msg_dict['content'])
-        output = "抱歉，大模型响应超时，请稍后再试"
-        try:
-            if not content:
-                output = "抱歉，输入内容为空，请输入有效内容"
-            else:
-                answer = qa_assistant.chat(session_id, content)
-                if answer:
-                    output = answer
-        except:
-            logger.error(f"大模型响应超时，session_id: {session_id}")
-        logger.info(f"[session_id={session_id}]--> {output}")
-        # 去掉html标签
-        output = remove_html_tags(output)
-        return output
+        return content
+        # output = "抱歉，大模型响应超时，请稍后再试"
+        # try:
+        #     if not content:
+        #         output = "抱歉，输入内容为空，请输入有效内容"
+        #     else:
+        #         answer = qa_assistant.chat(session_id, content)
+        #         if answer:
+        #             output = answer
+        # except:
+        #     logger.error(f"大模型响应超时，session_id: {session_id}")
+        # logger.info(f"[session_id={session_id}]--> {output}")
+        # # 去掉html标签
+        # output = remove_html_tags(output)
+        # return output
 
 
 

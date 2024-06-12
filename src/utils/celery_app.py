@@ -9,6 +9,7 @@ celery_app.conf.update(
     accept_content=['pickle', 'json'],
     task_serializer='pickle',  # 使用pickle作为任务序列化器
     result_serializer='pickle',
+    task_track_started =True,
     worker_force_execv=True,
     worker_max_tasks_per_child=500,
     broker_heartbeat=0,

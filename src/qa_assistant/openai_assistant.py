@@ -122,7 +122,7 @@ class Assistant(BaseAssistant):
                     citations.append(f'[{index}] {cited_file.filename}')
             message_content.value = process_content
             if citations:
-                message_content.value += "\n" + "\n".join(citations)
+                message_content.value += "\n\n" + "\n".join(citations)
         except:
             logger.error(f"[asst_id={self.assistant_id}]：助手返回内容存在问题：{message_content}\n {traceback.format_exc()}")
         return message_content

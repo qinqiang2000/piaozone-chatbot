@@ -119,7 +119,7 @@ class YZJHandler:
                     output = answer
         except:
             logger.error(f"大模型响应超时，session_id: {session_id}")
-        logger.info(f"[{session_id}: {msg.operatorOpenid}] --> {output} ")
+        logger.info(f"[asst_id={qa_assistant.assistant_id};session_id={session_id}; operatorOpenid={msg.operatorOpenid}] --> {output} ")
         # 先截取图片url
         img_urls = parse_img_urls(output)
         # 去掉html标签

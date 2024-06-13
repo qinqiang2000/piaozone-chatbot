@@ -158,7 +158,7 @@ class App(FastAPI):
                 task.add_task(self.yzjhandler.sync_gpt_assistant_on_yzj,
                               self.sync_manager.sync_dict[sync_id],
                               yzj_token, assistant, msg)
-            elif msg.content:
+            else:
                 task.add_task(self.yzjhandler.chat_doc, assistant, yzj_token, msg)
             result = {
                 "success": True,

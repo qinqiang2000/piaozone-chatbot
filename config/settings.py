@@ -67,10 +67,6 @@ YUNZHIJIA_CONFIG = {
 LOG_DIR = os.path.join(root_dir, 'logs')
 LOG_LEVEL = "debug"
 
-################## celery配置 ##################
-CELERY_CONFIG = {
-    "broker_url": 'redis://127.0.0.1:6379/0',
-    "backend_url": "redis://127.0.0.1:6379/1"}
 
 # PIAOZONE_TOKEN_URL = "https://api-dev.piaozone.com/test/base/exception/login/token"
 # PIAOZONE_TOKEN_BODY = "U5/yFNQySPUsjrHqSDUFl58fJ7OxHT8W4KWJqK4tLd/ze1/IIFtmActgeM8VxT4uAUn4cW75sKLbaLXPOMFYTVQ+XJDmwosnJ+qsangGMujLo2S3zQqQ/AU8TUd7qgrdYdEKKBLoTIXeCoBA3jjH4u9h+PvFcwfQuSgJbmKwomc="

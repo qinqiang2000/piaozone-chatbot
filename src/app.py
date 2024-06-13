@@ -18,11 +18,9 @@ sys.path.insert(0, root_dir)
 
 from config.settings import *
 from src.utils.logger import logger
-from src.utils.celery_app import celery_app, start_celery
 from src.utils.manage_config import ConfigManager
 from src.sync.sync_flow_manger import SyncManager
 from src.handlers.yunzhijia_handler import YZJHandler, YZJRobotMsg, YQMsg
-from src.handlers.base_handler import BaseHandler,BaseMsg
 from src.qa_assistant.base_assistant import ASSTType
 
 class App(FastAPI):
@@ -48,7 +46,6 @@ class App(FastAPI):
         # 4. 初始化云之家处理器和基础配置管理器
         self.yzjhandler = YZJHandler(yunzhijia_config=YUNZHIJIA_CONFIG,
                                      config_manager=self.config_manager)
-        self.basehandler = BaseHandler(config_manager=self.config_manager,assistans=self.assistants)
 
         # 5、添加定时任务,每周6 2点触发定时任务
         self.add_event_handler("startup", self.startup_tasks)
@@ -63,9 +60,6 @@ class App(FastAPI):
         self.add_api_route("/update_config", self.force_update_config, methods=["POST"])
         self.add_api_route("/get_config", self.get_config, methods=["GET"])
 
-        #test
-        # self.add_api_route("/test/chat/run", self.simple_chat, methods=["POST"])
-        # self.add_api_route("/test/chat/retrieve", self.check_simple_chat, methods=["POST"])
 
     def init_asst(self) -> None:
         """初始化assistants"""
@@ -177,49 +171,6 @@ class App(FastAPI):
                 "data": {"type": 2, "content": "抱歉，目前存在问题，请稍后再试"}
             }
         return JSONResponse(content=result)
-    async def simple_chat(self,request: Request, msg: BaseMsg) -> JSONResponse:
-        """
-        普通对话接口
-        :param request: 请求对象
-        :param msg: 请求消息
-        :param task: 后台任务
-        :return: JSON响应
-        """
-        try:
-            msg_dict = {
-                'assistant_id': msg.assistant_id,
-                'session_id': msg.session_id,
-                'content': msg.content
-            }
-            result = self.basehandler.chat_doc.delay(msg_dict)
-            return_res = {
-                    "status": result.state,
-                    'task_id': result.id,
-                    'content': '任务正在处理中，请保存task_id并稍后查看'
-                }
-            return JSONResponse(content=return_res)
-        except Exception as e:
-            logger.error(f"出现错误:{e}.{traceback.format_exc()}")
-            return_res = {
-                    "status": "FAILURE",
-                    'task_id': None,
-                    'content': "出现错误，请稍后再试"
-                }
-        return JSONResponse(content=return_res)
-    async def check_simple_chat(self,request: Request, task_id: str):
-        try:
-            async_result = AsyncResult(task_id, app=celery_app)
-            if async_result.successful():
-                data = async_result.get()
-                async_result.forget()
-                return {'status': 'SUCCESS',
-                        'task_id': task_id,
-                        'content': data}
-            else:
-                return {"status": async_result.state, 'task_id': task_id, "content": ''}
-        except Exception as e:
-            logger.error(f"出现错误:{e}.{traceback.format_exc()}")
-            return {'status': 'FAILURE', 'task_id': task_id,'content': '无效的task_id'}
 
     async def force_sync(self, task: BackgroundTasks, assistant_id: str = Query(...)) -> JSONResponse:
         try:
@@ -286,7 +237,6 @@ class App(FastAPI):
         """
         初始化定时任务
         """
-        # threading.Thread(target=start_celery, daemon=True).start()
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
         self.scheduler.start()

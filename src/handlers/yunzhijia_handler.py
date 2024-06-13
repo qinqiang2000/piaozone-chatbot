@@ -110,6 +110,7 @@ class YZJHandler:
         """
         output = "抱歉，大模型响应超时，请稍后再试"
         session_id = msg.sessionId
+        logger.debug(f"[asst_id={qa_assistant.assistant_id}]:额外参数 robotId={msg.robotId};robotName={robotName};operatorName={operatorName};msgId={msgId}")
         try:
             if not msg.content.strip():
                 output = "抱歉，输入内容为空，请输入有效内容"
@@ -132,6 +133,9 @@ class YZJHandler:
 
         if img_urls:
             self.send_yzj_card_notice(yzj_token, img_urls, msg.operatorOpenid)
+
+        logger.debug(
+            f"[asst_id={qa_assistant.assistant_id};session_id={session_id}; operatorOpenid={msg.operatorOpenid}]: 回答结束")
 
     def sync_gpt_assistant_on_yzj(self, sync_flow, yzj_token, assistant: BaseAssistant, msg: YZJRobotMsg):
         """

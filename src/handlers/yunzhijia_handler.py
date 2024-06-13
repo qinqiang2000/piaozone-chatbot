@@ -44,12 +44,16 @@ class YZJHandler:
 
     def process_message(self, yzj_message: YZJRobotMsg):
         # 处理云之家消息
-        # 取yzj_message.content第一个空格之后的消息
-        logger.info(f"[{yzj_message.robotId}~{yzj_message.operatorOpenid}]:未处理前消息： {yzj_message.content}")
-        yzj_message.content = " ".join(yzj_message.content.split()[1:])
-        # 去除yzj_message.content中的前后空格
-        yzj_message.content = yzj_message.content.strip()
-        logger.info(f"[{yzj_message.robotId}~{yzj_message.operatorOpenid}]: {yzj_message}")
+        # 取
+        try:
+            robotName = yzj_message.robotName
+            logger.info(f"[{yzj_message.robotId}~{yzj_message.operatorOpenid}]:未处理前消息： {yzj_message.content}")
+            yzj_message.content = yzj_message.content.replace(f"@{robotName}", '')
+            # 去除yzj_message.content中的前后空格
+            yzj_message.content = yzj_message.content.strip()
+            logger.info(f"[{yzj_message.robotId}~{yzj_message.operatorOpenid}]: {yzj_message}")
+        except Exception as e:
+            logger.error(f"云之家消息处理失败，错误信息：{e}")
         return yzj_message
 
     def send_yzj_card_notice(self, yzj_token, img_urls, operator_open_id):
@@ -110,7 +114,6 @@ class YZJHandler:
         """
         output = "抱歉，大模型响应超时，请稍后再试"
         session_id = msg.sessionId
-        logger.debug(f"[asst_id={qa_assistant.assistant_id}]:额外参数 robotId={msg.robotId};robotName={robotName};operatorName={operatorName};msgId={msgId}")
         try:
             if not msg.content.strip():
                 output = "抱歉，输入内容为空，请输入有效内容"
@@ -118,24 +121,25 @@ class YZJHandler:
                 answer = qa_assistant.chat(session_id, msg.content)
                 if answer:
                     output = answer
-        except:
-            logger.error(f"大模型响应超时，session_id: {session_id}")
+        except Exception as e:
+            logger.error(f"大模型响应超时，session_id '{session_id}':{e}")
         logger.info(f"[asst_id={qa_assistant.assistant_id};session_id={session_id}; operatorOpenid={msg.operatorOpenid}] --> {output} ")
-        # 先截取图片url
-        img_urls = parse_img_urls(output)
-        # 去掉html标签
-        output = remove_html_tags(output)
-        if img_urls:
-            output += "\n具体图片可参考下面一条消息所示："
-        data = {"content": output,
-                "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
-        requests.post(self.yunzhijia_notify_url.format(yzj_token), json=data)
 
-        if img_urls:
-            self.send_yzj_card_notice(yzj_token, img_urls, msg.operatorOpenid)
+        try:
+            # 先截取图片url
+            img_urls = parse_img_urls(output)
+            # 去掉html标签
+            output = remove_html_tags(output)
+            if img_urls:
+                output += "\n具体图片可参考下面一条消息所示："
+            data = {"content": output,
+                    "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
+            requests.post(self.yunzhijia_notify_url.format(yzj_token), json=data)
 
-        logger.debug(
-            f"[asst_id={qa_assistant.assistant_id};session_id={session_id}; operatorOpenid={msg.operatorOpenid}]: 回答结束")
+            if img_urls:
+                self.send_yzj_card_notice(yzj_token, img_urls, msg.operatorOpenid)
+        except Exception as e:
+            logger.error(f"云之家消息处理失败，错误信息：{e}")
 
     def sync_gpt_assistant_on_yzj(self, sync_flow, yzj_token, assistant: BaseAssistant, msg: YZJRobotMsg):
         """

@@ -151,7 +151,7 @@ class OpenAIAsstTransformer:
         htm_docs = self.limit_doc_token(docs=htm_docs,max_tokens_per_file=max_tokens_per_file)
 
         base_path = os.path.join(self.tmp_dir, f"{assistant_id}")
-        os.makedirs(os.path.dirname(base_path), exist_ok=True)
+        os.makedirs(base_path, exist_ok=True)
 
         # 将文档内容分配到多个文件中，以应对gpt assistant的文件上限
         operated_files = self.distribute_docs(htm_docs, max_file_num, base_path, "html")
@@ -176,7 +176,7 @@ class OpenAIAsstTransformer:
 
 
         base_path = os.path.join(self.tmp_dir, f"{assistant_id}")
-        os.makedirs(os.path.dirname(base_path), exist_ok=True)
+        os.makedirs(base_path, exist_ok=True)
 
         # 将文档内容分配到多个文件中，以应对gpt assistant的文件上限
         operated_files = self.distribute_docs(new_docs, max_file_num,base_path,"md")

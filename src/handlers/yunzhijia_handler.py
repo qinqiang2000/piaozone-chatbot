@@ -132,13 +132,9 @@ class YZJHandler:
             output = remove_html_tags(output)
             if img_urls:
                 output += "\n具体图片可参考下面一条消息所示："
-            logger.info(
-                f"[asst_id={qa_assistant.assistant_id}]最终的结果：{output} ")
             data = {"content": output,
                     "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
             requests.post(self.yunzhijia_notify_url.format(yzj_token), json=data)
-            logger.debug(
-                f"[asst_id={qa_assistant.assistant_id}]完成消息发送")
 
             if img_urls:
                 self.send_yzj_card_notice(yzj_token, img_urls, msg.operatorOpenid)

@@ -2,7 +2,7 @@
 数据处理相关的函数
 """
 import re
-
+import requests
 import pandas as pd
 import pypinyin
 
@@ -161,9 +161,31 @@ def parse_img_urls(text):
     :param text:
     :return:
     """
+    pattern = "https?://.*?\.(?:jpg|jpeg|png|gif)"
     img_urls = re.findall(
-        "http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+\.(?:jpg|jpeg|png|gif)",
+        pattern,
         text)
+    img_urls = [url for url in img_urls if is_valid_image_url(url)]
     return img_urls
+""
+
+def is_valid_image_url(url):
+    """
+    校验图片URL是否合法
+    :param url: 图片URL
+    :return: bool
+    """
+    try:
+        # 发送HEAD请求验证URL
+        response = requests.head(url, timeout=5)
+        if response.status_code == 200:
+            content_type = response.headers.get('Content-Type', '')
+            if content_type.startswith('image'):
+                return True
+    except Exception as e:
+        logger.error(f"图片URL校验失败，URL: {url}, 异常信息: {e}")
+        return False
+    logger.info(f"图片URL不合法，URL: {url}")
+    return False
 
 

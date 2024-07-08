@@ -227,19 +227,24 @@ class Assistant(BaseAssistant):
                 openai_deleted = self.delete_openai_file(file.id)
                 if not openai_deleted:
                     failed_openai_files.append(file.id)
-
-            # 更新向量库名称
-            self.client.beta.vector_stores.update(
-                vector_store_id=vector_store_id,
-                name=self.topic,
-                expires_after={
-                    "anchor": "last_active_at",
-                    "days": 7
-                }
+            # 查看向量库是否过期
+            check_status_vector_store = self.client.beta.vector_stores.retrieve(
+                vector_store_id=vector_store_id
             )
+            is_expired = check_status_vector_store.status =="expired"
+            if not is_expired:
+                # 更新向量库名称
+                self.client.beta.vector_stores.update(
+                    vector_store_id=vector_store_id,
+                    name=self.topic,
+                    expires_after={
+                        "anchor": "last_active_at",
+                        "days": 7
+                    }
+                )
 
             # 删除整个向量库
-            if is_processing_files or failed_vector_store_files or failed_openai_files:
+            if is_processing_files or failed_vector_store_files or failed_openai_files or is_expired:
                 logger.info(
                     f"[asst_id={self.assistant_id}]：向量库 '{vector_store_id}' 下的部分文件正在处理中, 无法正常删除, 强制删除整个向量库"
                 )
@@ -260,7 +265,7 @@ class Assistant(BaseAssistant):
             )
             return True
         except Exception as e:
-            logger.error(f"[asst_id={self.assistant_id}]：清空助手文件失败：{e}")
+            logger.error(f"[asst_id={self.assistant_id}]：清空助手文件失败：{e}\n{traceback.format_exc()}")
             return False
 
     def create_vs(self,file_paths: list) -> bool:

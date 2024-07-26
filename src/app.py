@@ -15,13 +15,14 @@ from starlette.background import BackgroundTasks
 from celery.result import AsyncResult
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, root_dir)
-
 from config.settings import *
 from src.utils.logger import logger
 from src.utils.manage_config import ConfigManager
 from src.sync.sync_flow_manger import SyncManager
 from src.handlers.yunzhijia_handler import YZJHandler, YZJRobotMsg, YQMsg
 from src.qa_assistant.base_assistant import ASSTType
+from src.utils.database import SQLDatabase
+
 
 class App(FastAPI):
     """
@@ -39,15 +40,18 @@ class App(FastAPI):
         yuque_repos = self.config_manager.get_all_yq_repo()
         self.sync_manager = SyncManager(yuque_config=YUQUE_CONFIG,yuque_repos=yuque_repos,sync_configs=SYNC_CONFIGS)
 
+        # 3. 初始化数据库
+        self.database = SQLDatabase(**DB_CONFIG)
 
-        # 3. 初始化gpt assistants
+
+        # 4. 初始化gpt assistants
         self.init_asst()
 
-        # 4. 初始化云之家处理器和基础配置管理器
+        # 5. 初始化云之家处理器和基础配置管理器
         self.yzjhandler = YZJHandler(yunzhijia_config=YUNZHIJIA_CONFIG,
                                      config_manager=self.config_manager)
 
-        # 5、添加定时任务,每周6 2点触发定时任务
+        # 6、添加定时任务,每周6 2点触发定时任务
         self.add_event_handler("startup", self.startup_tasks)
         self.add_event_handler("shutdown", self.shutdown_tasks)
 
@@ -74,7 +78,7 @@ class App(FastAPI):
                     logger.info(f"[asst_id={asst_id}]: 同步不成功，初始化助手失败")
             except Exception as e:
                 logger.error(f"[asst_id={asst_id}]: 初始化助手失败：{e}")
-    def get_assistant(self,assistant_id: str):
+    def get_assistant(self,assistant_id):
         asst_type, llm_type = self.config_manager.get_asst_info_by_asst_id(assistant_id)
         repo, toc_title = self.config_manager.get_yq_info_by_asst_id(assistant_id)
         topic = repo + "_" + toc_title
@@ -88,7 +92,10 @@ class App(FastAPI):
         if assistant_id not in self.assistants:
             asst_config = ASSISTANT_CONFIG[asst_type].copy()
             asst_config["llm_option"] = llm_type
-            self.assistants[assistant_id] = OpenAIAssistant(assistant_id=assistant_id,assistant_config=asst_config,topic=topic)
+            self.assistants[assistant_id] = OpenAIAssistant(assistant_id=assistant_id,
+                                                            assistant_config=asst_config,
+                                                            topic=topic,
+                                                            database=self.database)
             # 如果不存在文件则上传文件
             if not self.assistants[assistant_id].check_asst_file():
                 repo, toc_title = self.config_manager.get_yq_info_by_asst_id(assistant_id)

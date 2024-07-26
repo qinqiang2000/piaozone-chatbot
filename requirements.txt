@@ -25,3 +25,5 @@ langchain_openai
 pypinyin
 pandas
 redis
+mysql-connector-python
+sqlalchemy==2.0.23

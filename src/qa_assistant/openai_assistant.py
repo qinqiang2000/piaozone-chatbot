@@ -1,19 +1,24 @@
 import time
 
 import traceback
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from openai import OpenAI, NotFoundError
 from openai.types.beta.threads import Run
 
 from src.qa_assistant.base_assistant import BaseAssistant, ASSTType
 from src.utils.logger import logger
 from src.utils.data_process import process_topic_name
+from src.utils.database import SQLDatabase,FileAndUrlTable
 
 # Assistant类，用于处理openai的对话请求
 class Assistant(BaseAssistant):
-    def __init__(self, assistant_id: str, assistant_config: dict, topic:str):
+    def __init__(self, assistant_id: str, assistant_config: dict, topic:str, database:SQLDatabase):
         super().__init__(assistant_id, assistant_config)
         self.topic = process_topic_name(topic)
         self.asst_type = ASSTType.NATIVE_ASST
+        self.database = database
+        self.table_class = FileAndUrlTable
+        self.database.create_table(self.table_class)
         self.thread_map = {}  # 英文指定id创建thread，所以需要一个map来存储session id(robot id + "~" + operatorOpenId)和thread_id的映射关系
 
     def get_vector_store_ids(self):
@@ -110,16 +115,43 @@ class Assistant(BaseAssistant):
             logger.error(f"[asst_id={self.assistant_id}][session_id={session_id}]状态：{run.status}.")
         return None
 
-    def process_annotation(self, message_content ):
+    def process_annotation(self, message_content):
         annotations = message_content.annotations
         citations = []
+        citation_index = 0
+        file_to_index = {}  # 字典来记录文件名和对应的索引
         try:
             process_content = message_content.value
-            for index, annotation in enumerate(annotations):
-                process_content = process_content.replace(annotation.text, f"[{index}]")
-                if (file_citation := getattr(annotation, 'file_citation', None)):
+            for annotation in annotations:
+                file_citation = getattr(annotation, 'file_citation', None)
+                if not file_citation:
+                    # 如果没有 file_citation，直接去掉 annotation.text
+                    process_content = process_content.replace(annotation.text, "")
+                else:
+                    placeholder = f"{{{{citation_{citation_index}}}}}"
+                    process_content = process_content.replace(annotation.text, placeholder)
+
+                    # 查询文件链接
+                    query_data = self.database.query_data(self.table_class, filters={"file_id": file_citation.file_id,
+                                                                                     "assistant_id": self.assistant_id})
+                    if query_data:
+                        url = query_data[0].url
+                    else:
+                        url = ""
                     cited_file = self.client.files.retrieve(file_citation.file_id)
-                    citations.append(f'[{index}] {cited_file.filename}')
+                    if file_citation.file_id not in file_to_index:
+                        # 如果文件id不在字典中，添加并更新索引
+                        file_to_index[file_citation.file_id] = citation_index
+                        citations.append(f'[{citation_index}] {cited_file.filename} [{url}]')
+                        citation_index += 1
+                    else:
+                        # 如果文件名已在字典中，使用已有的索引
+                        existing_index = file_to_index[file_citation.file_id]
+                        process_content = process_content.replace(f"{{{{citation_{citation_index}}}}}",
+                                                                  f"{{{{citation_{existing_index}}}}}")
+            # 最后一次性替换所有的占位符
+            for key, index in file_to_index.items():
+                process_content = process_content.replace(f"{{{{citation_{index}}}}}", f"[{index}]")
             message_content.value = process_content
             if citations:
                 message_content.value += "\n\n" + "\n".join(citations)
@@ -158,6 +190,8 @@ class Assistant(BaseAssistant):
         :return bool: 是否删除成功
         """
         try:
+            #删除数据库中文件id对应的信息
+            self.database.delete_data(self.table_class, filters={"file_id": file_id, "assistant_id": self.assistant_id})
             deleted_file = self.client.files.delete(file_id)
             if deleted_file.deleted:
                 logger.debug(f"[asst_id={self.assistant_id}]：在 OpenAI 文件中删除文件成功: {deleted_file}")
@@ -268,10 +302,10 @@ class Assistant(BaseAssistant):
             logger.error(f"[asst_id={self.assistant_id}]：清空助手文件失败：{e}\n{traceback.format_exc()}")
             return False
 
-    def create_vs(self,file_paths: list) -> bool:
+    def create_vs(self,file_paths_and_urls: list) -> bool:
         """
         创建向量库并上传文件
-        :param file_paths: 文件路径
+        :param file_paths: url和文件路径
         :return: 是否上传成功
         """
         vector_store_ids = self.get_vector_store_ids()
@@ -292,20 +326,70 @@ class Assistant(BaseAssistant):
                 assistant_id=self.assistant_id,
                 tool_resources={"file_search": {"vector_store_ids": [vector_store_ids[0]]}},
             )
+        return self.upload_file(file_paths_and_urls,vector_store_ids[0])
 
+        # file_streams = []
+        # try:
+        #     for path in file_paths:
+        #         file_streams.append(open(path, "rb"))
+        #     logger.debug(f"[asst_id={self.assistant_id}]：上传{len(file_paths)}个文件到向量库 '{vector_store_ids[0]}'")
+        #
+        #     # 上传文件到vector store，并轮询文件上传和处理状态
+        #     file_batch = self.client.beta.vector_stores.file_batches.upload_and_poll(
+        #         vector_store_id=vector_store_ids[0], files=file_streams
+        #     )
+        #     # file_batch = self.client.beta.vector_stores.file_batches.upload_and_poll(
+        #     #     vector_store_id=vector_store_ids[0], files=file_streams,chunking_strategy=self.chunking_strategy
+        #     # )
+        #     if file_batch.status == "completed":
+        #         logger.info(f"上传文件成功：{file_batch.file_counts}")
+        #         return True
+        #     logger.error(f"上传文件状态{file_batch.status}：{file_batch.file_counts}")
+        #     return False
+        # finally:
+        #     # 确保所有文件都被关闭
+        #     for file_stream in file_streams:
+        #         file_stream.close()
+    def upload_file(self,file_paths_and_urls: list, vector_store_id: str) -> bool:
         file_streams = []
+        results = []
         try:
-            for path in file_paths:
-                file_streams.append(open(path, "rb"))
-            logger.debug(f"[asst_id={self.assistant_id}]：上传{len(file_paths)}个文件到向量库 '{vector_store_ids[0]}'")
+            for url, path in file_paths_and_urls:
+                file_streams.append((url, open(path, "rb")))
+            logger.debug(f"[asst_id={self.assistant_id}]：上传{len(file_paths_and_urls)}个文件到向量库 '{vector_store_id}'")
+            # 上传 files
+            max_concurrency = 5
+            with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
+                futures = {
+                    executor.submit(
+                        self.client.files.create,
+                        file=file,
+                        purpose="assistants",
+                    ): url
+                    for url, file in file_streams
+                }
 
-            # 上传文件到vector store，并轮询文件上传和处理状态
-            file_batch = self.client.beta.vector_stores.file_batches.upload_and_poll(
-                vector_store_id=vector_store_ids[0], files=file_streams
+            for future in as_completed(futures):
+                url = futures[future]
+                exc = future.exception()
+                if exc:
+                    raise exc
+
+                results.append((url, future.result()))
+            # 将 file_id 和url的对应关系储存在数据库中
+            data_list = [{
+                'assistant_id': self.assistant_id,
+                'file_id': file_ins.id,
+                'url': file_url
+            } for file_url, file_ins in results]
+            self.database.batch_insert_data(self.table_class, data_list)
+
+            # 将files 添加到vector store
+            file_batch = self.client.beta.vector_stores.file_batches.create_and_poll(
+                vector_store_id=vector_store_id,
+                file_ids=[f.id for _, f in results]
+                # chunking_strategy=chunking_strategy
             )
-            # file_batch = self.client.beta.vector_stores.file_batches.upload_and_poll(
-            #     vector_store_id=vector_store_ids[0], files=file_streams,chunking_strategy=self.chunking_strategy
-            # )
             if file_batch.status == "completed":
                 logger.info(f"上传文件成功：{file_batch.file_counts}")
                 return True
@@ -313,8 +397,9 @@ class Assistant(BaseAssistant):
             return False
         finally:
             # 确保所有文件都被关闭
-            for file_stream in file_streams:
+            for _, file_stream in file_streams:
                 file_stream.close()
+
 
     def del_assistant(self) -> None:
         """

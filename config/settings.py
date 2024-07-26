@@ -67,7 +67,15 @@ YUNZHIJIA_CONFIG = {
 LOG_DIR = os.path.join(root_dir, 'logs')
 LOG_LEVEL = "debug"
 
-
+################# database ################
+DB_CONFIG = {
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
+    "host": os.getenv("DB_HOST"),
+    "port": os.getenv("DB_PORT"),
+    "db": os.getenv("DB_DB"),
+    "charset": os.getenv("DB_CHARSET")
+}
 # PIAOZONE_TOKEN_URL = "https://api-dev.piaozone.com/test/base/exception/login/token"
 # PIAOZONE_TOKEN_BODY = "U5/yFNQySPUsjrHqSDUFl58fJ7OxHT8W4KWJqK4tLd/ze1/IIFtmActgeM8VxT4uAUn4cW75sKLbaLXPOMFYTVQ+XJDmwosnJ+qsangGMujLo2S3zQqQ/AU8TUd7qgrdYdEKKBLoTIXeCoBA3jjH4u9h+PvFcwfQuSgJbmKwomc="
 # PIAOZONE_ADD_SOBOT_DOC_URL = "https://api-dev.piaozone.com/test/portal/m19/customer-service/sobot-doc/with-yuque-slug?access_token="

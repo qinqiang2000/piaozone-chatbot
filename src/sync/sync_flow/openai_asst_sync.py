@@ -38,7 +38,8 @@ class SyncFlow:
             return False
         try:
             # 2. 转换文档
-            asst_docs = self.transformer(yq_docs, assistant.assistant_id)
+            base_url = self.yqreader.get_access_base_url(repo)
+            asst_docs = self.transformer(yq_docs, assistant.assistant_id,base_url)
             # 3. 写入文档
             return self.writer(asst_docs, assistant)
         except Exception as e:

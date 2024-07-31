@@ -20,7 +20,7 @@ class FAQ(Base):
     __tablename__ = 'FQA_record'
     id = Column(Integer, primary_key=True, autoincrement=True)
     topic_name = Column(Text, nullable=False)
-    question = Column(LONGTEXT, nullable=False, unique=True)
+    question = Column(LONGTEXT, nullable=False)
     answer = Column(LONGTEXT, nullable=False)
     has_answer = Column(Text, nullable=False)
     asker = Column(Text, nullable=False)

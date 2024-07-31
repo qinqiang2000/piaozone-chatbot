@@ -12,11 +12,14 @@ import requests
 from pydantic import BaseModel
 import httpcore
 
-from qa_assistant.base_assistant import BaseAssistant
+from src.qa_assistant.base_assistant import BaseAssistant
 from src.utils.logger import logger
 from src.utils.data_process import (
     parse_img_urls,
     remove_html_tags)
+from src.utils.database import SQLDatabase,Base,FAQ
+
+
 
 class YZJRobotMsg(BaseModel):
     type: int
@@ -104,7 +107,7 @@ class YZJHandler:
                 data_content[f"bigImage{j}Url"] = img_url
         return data_content
 
-    def chat_doc(self, qa_assistant, yzj_token, msg: YZJRobotMsg):
+    def chat_doc(self, qa_assistant, yzj_token, msg: YZJRobotMsg,  database):
         """
         调用问答助手获取答案
         :param qa_assistant:
@@ -140,6 +143,20 @@ class YZJHandler:
                 self.send_yzj_card_notice(yzj_token, img_urls, msg.operatorOpenid)
         except Exception as e:
             logger.error(f"云之家消息处理失败，错误信息：{e}")
+
+        #获取需要的信息并录入到数据库：
+        _, topic_name = self.config_manager.get_yq_info_by_yzj_token(yzj_token)
+        question = msg.content
+        ans = output
+        has_answer_key = ["上述问题无法在标准知识库中找到答案", "在标准知识库中未能找到明确答案",
+                          "上述问题无法在标凈知识库找到答案", "上述问题无法在标净知识库找到答案"]
+        has_answer = '否' if any(phrase in ans for phrase in has_answer_key) else '是'
+        asker = msg.operatorName
+        upload_data = {'topic_name': topic_name, 'question': question, 'answer': ans, 'has_answer': has_answer,
+                'asker': asker}
+        database.insert_data(FAQ, upload_data)
+        logger.info("数据录入成功")
+
 
     def sync_gpt_assistant_on_yzj(self, sync_flow, yzj_token, assistant: BaseAssistant, msg: YZJRobotMsg):
         """

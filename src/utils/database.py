@@ -1,7 +1,9 @@
-from sqlalchemy import create_engine, Column, Integer, String, func
+from sqlalchemy import create_engine, Column, Integer, String, func, DateTime, Text
+from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from src.utils.logger import logger
+import datetime
 
 Base = declarative_base()
 
@@ -12,6 +14,17 @@ class FileAndUrlTable(Base):
     assistant_id = Column(String(255), nullable=False)
     file_id = Column(String(255), nullable=False)
     url = Column(String(255), nullable=False)
+
+class FAQ(Base):
+    """储存机器人问答信息"""
+    __tablename__ = 'FQA_record'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    topic_name = Column(Text, nullable=False)
+    question = Column(LONGTEXT, nullable=False, unique=True)
+    answer = Column(LONGTEXT, nullable=False)
+    has_answer = Column(Text, nullable=False)
+    asker = Column(Text, nullable=False)
+    entry_time = Column(DateTime, default=datetime.datetime.now)
 
 class SQLDatabase:
     """使用 SQLAlchemy 存储信息"""
@@ -109,12 +122,13 @@ class SQLDatabase:
         except Exception as e:
             logger.error(f"查询数据错误: {e}")
             raise e
-    def complex_query_data(self, table_class, condition=None):
+
+    def complex_query_data(self, table_class, condition= None):
         """基于复杂条件查询数据"""
         try:
             with self.Session() as session:
                 query = session.query(table_class)
-                if condition:
+                if condition is not None:
                     query = query.filter(condition)
                 result = query.all()
             logger.debug(f"成功查询到 {len(result)} 行数据从 {table_class.__tablename__}")

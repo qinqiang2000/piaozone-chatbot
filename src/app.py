@@ -21,8 +21,10 @@ from src.utils.manage_config import ConfigManager
 from src.sync.sync_flow_manger import SyncManager
 from src.handlers.yunzhijia_handler import YZJHandler, YZJRobotMsg, YQMsg
 from src.qa_assistant.base_assistant import ASSTType
-from src.utils.database import SQLDatabase
-
+from src.utils.database import SQLDatabase, FAQ
+import datetime
+from sqlalchemy import and_
+import requests
 
 class App(FastAPI):
     """
@@ -42,6 +44,7 @@ class App(FastAPI):
 
         # 3. 初始化数据库
         self.database = SQLDatabase(**DB_CONFIG)
+        self.database.create_table(table_class=FAQ) #建表储存问答信息
 
 
         # 4. 初始化gpt assistants
@@ -166,7 +169,7 @@ class App(FastAPI):
                               self.sync_manager.sync_dict[sync_id],
                               yzj_token, assistant, msg)
             else:
-                task.add_task(self.yzjhandler.chat_doc, assistant, yzj_token, msg)
+                task.add_task(self.yzjhandler.chat_doc, assistant, yzj_token, msg, self.database)
             result = {
                 "success": True,
                 "data": {"type": 2, "content": "请稍等..."}
@@ -240,12 +243,81 @@ class App(FastAPI):
             if asst is not None:
                 asst.del_all_threads()
         logger.info("定时任务结束")
+
+    async def update_to_yuque(self):
+        """
+        将前一天的所有数据更新到语雀文档中
+        :return:
+        """
+        # 需要更新的url和表头
+        yuque_url = "https://jdpiaozone.yuque.com/api/v2/repos/nbklz3/kro38t/docs/wthbafwdgo5zw783"
+        yuque_headers = {
+            "X-Auth-Token": YUQUE_CONFIG["yuque_auth_token"],
+            "User-Agent": YUQUE_CONFIG["yuque_request_agent"]
+                    }
+        # 获取url现有数据
+        try:
+            response = requests.get(yuque_url, headers=yuque_headers)
+            response.raise_for_status()
+            existing_content = response.json()['data']
+            existing_body = existing_content['body']
+            update_time = existing_content.get('updated_at')
+            logger.info(f"获取url现有数据成功，上次更新时间{update_time}")
+        except requests.exceptions.RequestException as e:
+            logger.info(f"获取现有数据失败：{e}")
+
+        # 从数据库获取前一天0点到今天0点的数据
+        table_class = FAQ
+        now = datetime.datetime.now()
+        yesterday = datetime.datetime.combine(now.date() - datetime.timedelta(days=1), datetime.time(0, 0))
+        today = datetime.datetime.combine(now.date(), datetime.time(0, 0))
+        filter_cond = and_(table_class.entry_time >= yesterday, table_class.entry_time <= today)
+        extract_data = self.database.complex_query_data(table_class, filter_cond)
+        # 列表储存得到的数据
+        results = []
+        for result in extract_data:
+            res = {'id': result.id, 'topic_name': result.topic_name, 'question': result.question,
+                   'answer': result.answer, 'has_answer': result.has_answer, 'asker': result.asker,
+                   'entry_time': result.entry_time}
+            results.append(res)
+        logger.info(f"成功从数据库获取记录")
+
+        #设定表头和新加的数据格式
+        header = '| 序号 | 产品线 | 问题来源编号 | 问题模块 | 问题等级 | 问题描述 | GPT参考答案 | 知识库是否存在答案 | 最终回复答案 | 提问人 | 解答人 | 录入时间 |\n '
+        header += '|---|---|---|---|---|---|---|---|---|---|---|---|\n'
+        new_content = ''
+        for item in results:
+            format_ans = item['answer'].replace('\n', '<br />')
+            row = f"| {item['id']} | {item['topic_name']} | <br /> | <br /> | <br /> | {item['question']} | {format_ans} | {item['has_answer']} | <br /> | {item['asker']} | <br /> | {item['entry_time']} |\n"
+            new_content += row
+        # 如果现有body不为空，加上新的数据，否则设定表头内容
+        if existing_body.strip():
+            update_content_body = existing_body + new_content
+        else:
+            update_content_body = header + new_content
+        #更新的内容
+        update_content = {
+            'title': 'FAQ信息',
+            'format': 'markdown',
+            'body': update_content_body,
+            'public': 2
+        }
+        # 发送 PUT 请求更新数据
+        try:
+            response = requests.put(yuque_url, headers=yuque_headers, json=update_content)
+            response.raise_for_status()
+            logger.info("数据更新成功")
+        except requests.exceptions.RequestException as e:
+            logger.info(f"数据更新失败：{e}")
+
+
     async def startup_tasks(self):
         """
         初始化定时任务
         """
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
+        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=2)
         self.scheduler.start()
         logger.info("设置定时同步任务成功")
     async def shutdown_tasks(self):

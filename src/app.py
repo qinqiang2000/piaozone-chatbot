@@ -264,7 +264,7 @@ class App(FastAPI):
             update_time = existing_content.get('updated_at')
             logger.info(f"获取url现有数据成功，上次更新时间{update_time}")
         except requests.exceptions.RequestException as e:
-            logger.info(f"获取现有数据失败：{e}")
+            logger.error(f"获取现有数据失败：{e}")
 
         # 从数据库获取前一天0点到今天0点的数据
         table_class = FAQ
@@ -308,7 +308,7 @@ class App(FastAPI):
             response.raise_for_status()
             logger.info("数据更新成功")
         except requests.exceptions.RequestException as e:
-            logger.info(f"数据更新失败：{e}")
+            logger.error(f"数据更新失败：{e}")
 
 
     async def startup_tasks(self):

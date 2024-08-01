@@ -298,12 +298,12 @@ class App(FastAPI):
             update_content_body = existing_body + new_content
         else:
             update_content_body = header + new_content
-        temp_update = header + new_content
+        #temp_update = header + new_content
         #更新的内容
         update_content = {
             'title': 'FAQ信息',
             'format': 'markdown',
-            'body': temp_update,
+            'body': update_content_body,
             'public': 2
         }
         # 发送 PUT 请求更新数据
@@ -321,7 +321,7 @@ class App(FastAPI):
         """
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
-        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=10)
+        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=17)
         self.scheduler.start()
         logger.info("设置定时同步任务成功")
     async def shutdown_tasks(self):

@@ -287,19 +287,23 @@ class App(FastAPI):
         header += '|---|---|---|---|---|---|---|---|---|---|---|---|\n'
         new_content = ''
         for item in results:
-            format_ans = item['answer'].replace('\n', '<br />')
-            row = f"| {item['id']} | {item['topic_name']} | <br /> | <br /> | <br /> | {item['question']} | {format_ans} | {item['has_answer']} | <br /> | {item['asker']} | <br /> | {item['entry_time']} |\n"
+            f_topic_name = item['topic_name'].replace('\n', ' ')
+            f_question = item['question'].replace('\n', ' ')
+            f_answer = item['answer'].replace('\n', ' ')
+            f_asker = item['asker'].replace('\n', ' ')
+            row = f"| {item['id']} | {f_topic_name} |   |   |   | {f_question} | {f_answer} | {item['has_answer']} |   | {f_asker} |   | {item['entry_time']} |\n"
             new_content += row
         # 如果现有body不为空，加上新的数据，否则设定表头内容
         if existing_body.strip():
             update_content_body = existing_body + new_content
         else:
             update_content_body = header + new_content
+        temp_update = header + new_content
         #更新的内容
         update_content = {
             'title': 'FAQ信息',
             'format': 'markdown',
-            'body': update_content_body,
+            'body': temp_update,
             'public': 2
         }
         # 发送 PUT 请求更新数据
@@ -317,7 +321,7 @@ class App(FastAPI):
         """
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
-        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=2)
+        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=10)
         self.scheduler.start()
         logger.info("设置定时同步任务成功")
     async def shutdown_tasks(self):

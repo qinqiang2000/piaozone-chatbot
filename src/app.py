@@ -260,9 +260,11 @@ class App(FastAPI):
             response = requests.get(yuque_url, headers=yuque_headers)
             response.raise_for_status()
             existing_content = response.json()['data']
-            existing_body = existing_content['body']
+            existing_data = existing_content['body']
+            existing_body = existing_data.replace('\n\n', '\n')
             update_time = existing_content.get('updated_at')
             logger.info(f"获取url现有数据成功，上次更新时间{update_time}")
+            logger.info(f"url现有数据：{existing_body}")
         except requests.exceptions.RequestException as e:
             logger.error(f"获取现有数据失败：{e}")
 
@@ -321,7 +323,7 @@ class App(FastAPI):
         """
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
-        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=17)
+        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=2)
         self.scheduler.start()
         logger.info("设置定时同步任务成功")
     async def shutdown_tasks(self):

@@ -259,19 +259,20 @@ class App(FastAPI):
         try:
             response = requests.get(yuque_url, headers=yuque_headers)
             response.raise_for_status()
-            existing_content = response.json()['data']
-            existing_data = existing_content['body']
-            existing_body = existing_data.replace('\n\n', '\n')
-            update_time = existing_content.get('updated_at')
+            existing_data = response.json()['data']
+            existing_body = existing_data['body']
+            format_body = existing_body.replace('<br />', '\n') #统一换行符
+            existing_content = format_body.replace('\n\n', '\n')
+            update_time = existing_data.get('updated_at')
             logger.info(f"获取url现有数据成功，上次更新时间{update_time}")
-            logger.info(f"url现有数据：{existing_body}")
+            logger.info(f"url现有数据：{existing_content}") #正式删掉这个
         except requests.exceptions.RequestException as e:
             logger.error(f"获取现有数据失败：{e}")
 
         # 从数据库获取前一天0点到今天0点的数据
         table_class = FAQ
         now = datetime.datetime.now()
-        yesterday = datetime.datetime.combine(now.date() - datetime.timedelta(days=1), datetime.time(0, 0))
+        yesterday = datetime.datetime.combine(now.date() - datetime.timedelta(days=2), datetime.time(0, 0)) #正式days = 1
         today = datetime.datetime.combine(now.date(), datetime.time(0, 0))
         filter_cond = and_(table_class.entry_time >= yesterday, table_class.entry_time <= today)
         extract_data = self.database.complex_query_data(table_class, filter_cond)
@@ -296,8 +297,8 @@ class App(FastAPI):
             row = f"| {item['id']} | {f_topic_name} |   |   |   | {f_question} | {f_answer} | {item['has_answer']} |   | {f_asker} |   | {item['entry_time']} |\n"
             new_content += row
         # 如果现有body不为空，加上新的数据，否则设定表头内容
-        if existing_body.strip():
-            update_content_body = existing_body + new_content
+        if existing_content.strip():
+            update_content_body = existing_content + new_content
         else:
             update_content_body = header + new_content
         #temp_update = header + new_content
@@ -323,7 +324,7 @@ class App(FastAPI):
         """
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
-        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=2)
+        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=9, minute = 30) #正式是2点
         self.scheduler.start()
         logger.info("设置定时同步任务成功")
     async def shutdown_tasks(self):

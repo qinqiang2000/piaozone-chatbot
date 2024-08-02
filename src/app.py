@@ -265,14 +265,14 @@ class App(FastAPI):
             existing_content = format_body.replace('\n\n', '\n')
             update_time = existing_data.get('updated_at')
             logger.info(f"获取url现有数据成功，上次更新时间{update_time}")
-            logger.info(f"url现有数据：{existing_content}") #正式删掉这个
+            #logger.info(f"url现有数据：{existing_content}")
         except requests.exceptions.RequestException as e:
             logger.error(f"获取现有数据失败：{e}")
 
         # 从数据库获取前一天0点到今天0点的数据
         table_class = FAQ
         now = datetime.datetime.now()
-        yesterday = datetime.datetime.combine(now.date() - datetime.timedelta(days=2), datetime.time(0, 0)) #正式days = 1
+        yesterday = datetime.datetime.combine(now.date() - datetime.timedelta(days=1), datetime.time(0, 0))
         today = datetime.datetime.combine(now.date(), datetime.time(0, 0))
         filter_cond = and_(table_class.entry_time >= yesterday, table_class.entry_time <= today)
         extract_data = self.database.complex_query_data(table_class, filter_cond)
@@ -290,6 +290,7 @@ class App(FastAPI):
         header += '|---|---|---|---|---|---|---|---|---|---|---|---|\n'
         new_content = ''
         for item in results:
+            #统一格式
             f_topic_name = item['topic_name'].replace('\n', ' ')
             f_question = item['question'].replace('\n', ' ')
             f_answer = item['answer'].replace('\n', ' ')
@@ -324,7 +325,7 @@ class App(FastAPI):
         """
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
-        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=9, minute = 30) #正式是2点
+        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=2)
         self.scheduler.start()
         logger.info("设置定时同步任务成功")
     async def shutdown_tasks(self):

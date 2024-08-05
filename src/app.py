@@ -261,8 +261,9 @@ class App(FastAPI):
             response.raise_for_status()
             existing_data = response.json()['data']
             existing_body = existing_data['body']
-            format_body = existing_body.replace('|<br />', '|\n') #替换每行结尾的换行符
-            existing_content = format_body.replace('|\n\n', '|\n') #替换表格结尾，避免更新时破坏表格格式
+            format_body = existing_body.replace('<br />', '<br>')
+            format_body2 = format_body.replace('|<br>', '|\n') #替换每行结尾的换行符
+            existing_content = format_body2.replace('|\n\n', '|\n') #替换表格结尾，避免更新时破坏表格格式
             update_time = existing_data.get('updated_at')
             logger.info(f"获取url现有数据成功，上次更新时间{update_time}")
             #logger.info(f"url现有数据：{existing_content}")
@@ -275,7 +276,7 @@ class App(FastAPI):
         yesterday = datetime.datetime.combine(now.date() - datetime.timedelta(days=1), datetime.time(0, 0))
         today = datetime.datetime.combine(now.date(), datetime.time(0, 0))
         filter_cond = and_(table_class.entry_time >= yesterday, table_class.entry_time <= today)
-        extract_data = self.database.complex_query_data(table_class ) #改filter_cond
+        extract_data = self.database.complex_query_data(table_class) #, filter_cond
         # 列表储存得到的数据
         results = []
         for result in extract_data:
@@ -291,10 +292,10 @@ class App(FastAPI):
         new_content = ''
         for item in results:
             #统一格式，替换换行符
-            f_topic_name = item['topic_name'].replace('\n', '  ')
-            f_question = item['question'].replace('\n', '  ')
-            f_answer = item['answer'].replace('\n', '  ')
-            f_asker = item['asker'].replace('\n', '  ')
+            f_topic_name = item['topic_name'].replace('\n', '<br>')
+            f_question = item['question'].replace('\n', '<br>')
+            f_answer = item['answer'].replace('\n', '<br>')
+            f_asker = item['asker'].replace('\n', '<br>')
             row = f"| {item['id']} | {f_topic_name} |   |   |   | {f_question} | {f_answer} | {item['has_answer']} |   | {f_asker} |   | {item['entry_time']} |\n"
             new_content += row
         # 如果现有body不为空，加上新的数据，否则设定表头内容
@@ -325,7 +326,7 @@ class App(FastAPI):
         """
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
-        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=10) #改
+        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=11)
         self.scheduler.start()
         logger.info("设置定时同步任务成功")
     async def shutdown_tasks(self):

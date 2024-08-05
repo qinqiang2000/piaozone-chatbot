@@ -275,7 +275,7 @@ class App(FastAPI):
         yesterday = datetime.datetime.combine(now.date() - datetime.timedelta(days=1), datetime.time(0, 0))
         today = datetime.datetime.combine(now.date(), datetime.time(0, 0))
         filter_cond = and_(table_class.entry_time >= yesterday, table_class.entry_time <= today)
-        extract_data = self.database.complex_query_data(table_class, filter_cond)
+        extract_data = self.database.complex_query_data(table_class ) #改filter_cond
         # 列表储存得到的数据
         results = []
         for result in extract_data:
@@ -291,10 +291,10 @@ class App(FastAPI):
         new_content = ''
         for item in results:
             #统一格式，替换换行符
-            f_topic_name = item['topic_name'].replace('\n', '<br>')
-            f_question = item['question'].replace('\n', '<br>')
-            f_answer = item['answer'].replace('\n', '<br>')
-            f_asker = item['asker'].replace('\n', '<br>')
+            f_topic_name = item['topic_name'].replace('\n', '  ')
+            f_question = item['question'].replace('\n', '  ')
+            f_answer = item['answer'].replace('\n', '  ')
+            f_asker = item['asker'].replace('\n', '  ')
             row = f"| {item['id']} | {f_topic_name} |   |   |   | {f_question} | {f_answer} | {item['has_answer']} |   | {f_asker} |   | {item['entry_time']} |\n"
             new_content += row
         # 如果现有body不为空，加上新的数据，否则设定表头内容
@@ -302,7 +302,7 @@ class App(FastAPI):
             update_content_body = existing_content + new_content
         else:
             update_content_body = header + new_content
-        #temp_update = header + new_content
+
         #更新的内容
         update_content = {
             'title': 'FAQ信息',
@@ -325,7 +325,7 @@ class App(FastAPI):
         """
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
-        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=2)
+        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=9, minute=45) #改
         self.scheduler.start()
         logger.info("设置定时同步任务成功")
     async def shutdown_tasks(self):

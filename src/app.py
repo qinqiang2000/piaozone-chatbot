@@ -261,12 +261,11 @@ class App(FastAPI):
             response.raise_for_status()
             existing_data = response.json()['data']
             existing_body = existing_data['body']
-            #format_body = existing_body.replace('<br />', '<br>')
-            format_body = existing_body.replace('<br />', '<br>').replace('\n', '<br>').replace('|<br>', '|\n')
-            existing_content = format_body.replace('|\n\n', '|\n') #替换表格结尾，避免更新时破坏表格格式
+            format_body = existing_body.replace('<br />', '<br>').replace('\n', '<br>') #修改单元格内换行符
+            existing_content = format_body.replace('|<br><br>', '|\n').replace('|<br>', '|\n') #替换表格结尾
             update_time = existing_data.get('updated_at')
             logger.info(f"获取url现有数据成功，上次更新时间{update_time}")
-            logger.info(f"url现有数据：{existing_content}")
+            #logger.info(f"url现有数据：{existing_content}")
         except requests.exceptions.RequestException as e:
             logger.error(f"获取现有数据失败：{e}")
 
@@ -276,7 +275,7 @@ class App(FastAPI):
         yesterday = datetime.datetime.combine(now.date() - datetime.timedelta(days=1), datetime.time(0, 0))
         today = datetime.datetime.combine(now.date(), datetime.time(0, 0))
         filter_cond = and_(table_class.entry_time >= yesterday, table_class.entry_time <= today)
-        extract_data = self.database.complex_query_data(table_class) #改, filter_cond
+        extract_data = self.database.complex_query_data(table_class, filter_cond)
         # 列表储存得到的数据
         results = []
         for result in extract_data:
@@ -326,7 +325,7 @@ class App(FastAPI):
         """
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
-        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=11) #改
+        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=2) 
         self.scheduler.start()
         logger.info("设置定时同步任务成功")
     async def shutdown_tasks(self):

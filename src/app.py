@@ -325,7 +325,7 @@ class App(FastAPI):
         """
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
-        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=2) 
+        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=1)
         self.scheduler.start()
         logger.info("设置定时同步任务成功")
     async def shutdown_tasks(self):

@@ -72,6 +72,7 @@ class App(FastAPI):
         # self.add_api_route("/yuque/webhook", self.yuque_sync_info_update, methods=["POST"])
         self.add_api_route("/sync", self.force_sync, methods=["POST"])
         self.add_api_route("/empty_file", self.empty_files, methods=["POST"])
+        self.add_api_route("/del_session", self.del_session, methods=["POST"])
         self.add_api_route("/yuque/config_update", self.yuque_update_config, methods=["POST"])
         self.add_api_route("/update_config", self.force_update_config, methods=["POST"]) # 强制更新配置
         self.add_api_route("/get_config", self.get_config, methods=["GET"])
@@ -477,6 +478,19 @@ class App(FastAPI):
         except Exception as e:
             result = {"success": False, "description": str(e)}
             logger.error(f"清空文件失败：{e}.{traceback.format_exc()}")
+        return JSONResponse(content=result)
+    def del_session(self, assistant_id: str = Query(...), session_id: str = Query(...)):
+        """
+        清空assistant的文件
+        :return:
+        """
+        try:
+            assistant = self.get_assistant(assistant_id)
+            assistant.del_thread(session_id)
+            result = {"success": True, "description": "成功删除"}
+        except Exception as e:
+            result = {"success": False, "description": str(e)}
+            logger.error(f"删除thread失败：{e}.{traceback.format_exc()}")
         return JSONResponse(content=result)
 
 

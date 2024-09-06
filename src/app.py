@@ -3,12 +3,14 @@
 #
 import asyncio
 import os
-from typing import Any
+from typing import Any,Optional
 import sys
-
+import importlib
 import traceback
-import threading
+from pydantic import BaseModel,ValidationError
+from fastapi.exceptions import RequestValidationError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, Request, Query
 from fastapi.responses import JSONResponse
 from starlette.background import BackgroundTasks
@@ -19,12 +21,18 @@ from config.settings import *
 from src.utils.logger import logger
 from src.utils.manage_config import ConfigManager
 from src.sync.sync_flow_manger import SyncManager
-from src.handlers.yunzhijia_handler import YZJHandler, YZJRobotMsg, YQMsg
+from src.handlers.yunzhijia_handler import YZJHandler, YZJRobotMsg
+from src.handlers.zhichi_handler import ZhiChiHandler, ZCRobotMsg
 from src.qa_assistant.base_assistant import ASSTType
 from src.utils.database import SQLDatabase, FAQ
 import datetime
 from sqlalchemy import and_
 import requests
+
+class YQMsg(BaseModel):
+    data: Optional[dict] = None
+
+executor = ThreadPoolExecutor(50)
 
 class App(FastAPI):
     """
@@ -35,8 +43,7 @@ class App(FastAPI):
         # 1. 初始化 config
         self.config_manager = ConfigManager(
             yuque_config=YUQUE_CONFIG,
-            config_repo=CONFIG_REPO,
-            config_slug=CONFIG_SLUG)
+            config_info=CONFIG_INFO)
 
         # 2. 初始化语雀到assistant 或者其他的同步组件
         yuque_repos = self.config_manager.get_all_yq_repo()
@@ -50,21 +57,23 @@ class App(FastAPI):
         # 4. 初始化gpt assistants
         self.init_asst()
 
-        # 5. 初始化云之家处理器和基础配置管理器
+        # 5. 初始化云之家处理器和智齿处理器
         self.yzjhandler = YZJHandler(yunzhijia_config=YUNZHIJIA_CONFIG,
                                      config_manager=self.config_manager)
+        self.zhichihandler = ZhiChiHandler(config_manager=self.config_manager)
 
-        # 6、添加定时任务,每周6 2点触发定时任务
+        # 6、添加定时任务,每周6 2点触发定时同步任务，每天1点触发定时自动录入任务
         self.add_event_handler("startup", self.startup_tasks)
         self.add_event_handler("shutdown", self.shutdown_tasks)
 
         # 7、添加 api_route
-        self.add_api_route("/chat", self.yzj_fpy_chat, methods=["POST"])
+        self.add_api_route("/yzj/chat", self.yzj_chat, methods=["POST"])
+        self.add_api_route("/zhichi/chat", self.zhihci_chat, methods=["POST"])
         # self.add_api_route("/yuque/webhook", self.yuque_sync_info_update, methods=["POST"])
-        self.add_api_route("/yuque/config_update", self.yuque_update_config, methods=["POST"])
         self.add_api_route("/sync", self.force_sync, methods=["POST"])
         self.add_api_route("/empty_file", self.empty_files, methods=["POST"])
-        self.add_api_route("/update_config", self.force_update_config, methods=["POST"])
+        self.add_api_route("/yuque/config_update", self.yuque_update_config, methods=["POST"])
+        self.add_api_route("/update_config", self.force_update_config, methods=["POST"]) # 强制更新配置
         self.add_api_route("/get_config", self.get_config, methods=["GET"])
 
 
@@ -80,55 +89,43 @@ class App(FastAPI):
                 else:
                     logger.info(f"[asst_id={asst_id}]: 同步不成功，初始化助手失败")
             except Exception as e:
-                logger.error(f"[asst_id={asst_id}]: 初始化助手失败：{e}")
+                logger.error(f"[asst_id={asst_id}]: 初始化助手失败：{e}.{traceback.format_exc()}")
     def get_assistant(self,assistant_id):
+        if assistant_id in self.assistants:
+            return self.assistants[assistant_id]
+        assistant_ins = self.get_new_assistant(assistant_id, ASSISTANT_CONFIG, LLM_CONFIGS)
+        if assistant_ins is not None:
+            self.assistants[assistant_id] = assistant_ins
+        return assistant_ins
+    def get_new_assistant(self, assistant_id, asst_configs, llm_configs):
+        if assistant_id not in self.config_manager.get_all_asst_id():
+            logger.error(f"[asst_id={assistant_id}]: 助手id不存在")
+            return None
         asst_type, llm_type = self.config_manager.get_asst_info_by_asst_id(assistant_id)
         repo, toc_title = self.config_manager.get_yq_info_by_asst_id(assistant_id)
         topic = repo + "_" + toc_title
-        if asst_type == ASSTType.NATIVE_ASST:
-            return self.get_openai_assistant(assistant_id, llm_type, asst_type, topic)
-        else:
-            logger.error(f"不支持的助手类型: {asst_type}")
+        if asst_type not in asst_configs:
+            logger.error(f"[asst_id={assistant_id}]: 不合法的助手类型: {asst_type}")
             return None
-    def get_openai_assistant(self,assistant_id: str, llm_type: str, asst_type: int,topic: str):
-        from src.qa_assistant.openai_assistant import Assistant as OpenAIAssistant
-        if assistant_id not in self.assistants:
-            asst_config = ASSISTANT_CONFIG[asst_type].copy()
-            asst_config["llm_option"] = llm_type
-            self.assistants[assistant_id] = OpenAIAssistant(assistant_id=assistant_id,
-                                                            assistant_config=asst_config,
-                                                            topic=topic,
-                                                            database=self.database)
-            # 如果不存在文件则上传文件
-            if not self.assistants[assistant_id].check_asst_file():
-                repo, toc_title = self.config_manager.get_yq_info_by_asst_id(assistant_id)
-                logger.info(f"[asst_id={assistant_id}]: 助手不存在文件，开始同步专题库 '{toc_title}' 的文件")
-                sync_id = asst_config['sync_flow_config']['id']
-                ret = self.sync_manager.sync_dict[sync_id].sync_yq_doc_to_dest(repo, toc_title, self.assistants[assistant_id])
-                # 如果同步失败：
-                if not ret:
-                    return None
-        return self.assistants[assistant_id]
+        llm_module = importlib.import_module(f"src.qa_assistant.{asst_type}")
+        asst_config = asst_configs[asst_type].copy()
+        asst_config["llm_option"] = llm_type
+        assistant_ins = llm_module.Assistant(assistant_id=assistant_id,
+                                             assistant_config=asst_config,
+                                             llm_configs=llm_configs,
+                                             topic=topic,
+                                             database=self.database)
+        if not assistant_ins.check_asst_file():
+            logger.info(f"[asst_id={assistant_id}]: 助手不存在文件，开始同步专题库 '{toc_title}' 的文件")
+            sync_id = asst_config['sync_flow_config']['id']
+            ret = self.sync_manager.sync_dict[sync_id].sync_yq_doc_to_dest(repo, toc_title,
+                                                                           assistant_ins)
+            # 如果同步失败：
+            if not ret:
+                return None
+        return assistant_ins
 
-
-    def update_config(self) -> None:
-        """更新配置"""
-        logger.info("开始更新配置...")
-        try:
-            add_repo, _, add_asst, _ = self.config_manager.update_config()
-            #
-            if add_repo:
-                self.sync_manager.update_yq_repos(add_repo)
-            if add_asst:
-                for asst_id in add_asst:
-                    asst = self.get_assistant(asst_id)
-                    if asst is not None:
-                        logger.info(f"[asst_id={asst_id}]：初始化助手成功")
-                    else:
-                        logger.info(f"[asst_id={asst_id}]：同步不成功，初始化助手失败")
-        except Exception as e:
-            logger.error(f"配置更新失败：{e}.{traceback.format_exc()}")
-    async def yzj_fpy_chat(self,request: Request, msg: YZJRobotMsg,
+    async def yzj_chat(self,request: Request, msg: YZJRobotMsg,
                            task: BackgroundTasks, yzj_token: str = Query(...)) -> JSONResponse:
         """
         云之家对话接口
@@ -149,6 +146,7 @@ class App(FastAPI):
                 }
                 return JSONResponse(content=result)
             # 1、处理消息文本
+            logger.info(f"[yzj_token={yzj_token}]输入消息: {msg}")
             msg = self.yzjhandler.process_message(msg)
             # 2、获取assistant
             assistant_id = self.config_manager.get_assistant_id_by_yzj_token(yzj_token)
@@ -160,16 +158,9 @@ class App(FastAPI):
                 }
                 return JSONResponse(content=result)
             assistant = self.get_assistant(assistant_id)
+            is_auto_entry = self.config_manager.get_auto_entry_info_by_yzj_token(yzj_token)
 
-            # msg.content包含sync gpt(仍保留)，则同步语雀文档到gpt assistant
-            if "sync gpt" in msg.content.lower():
-                asst_type, llm_type = self.config_manager.get_asst_info_by_asst_id(assistant_id)
-                sync_id = ASSISTANT_CONFIG[asst_type]['sync_flow_config']['id']
-                task.add_task(self.yzjhandler.sync_gpt_assistant_on_yzj,
-                              self.sync_manager.sync_dict[sync_id],
-                              yzj_token, assistant, msg)
-            else:
-                task.add_task(self.yzjhandler.chat_doc, assistant, yzj_token, msg, self.database)
+            task.add_task(self.yzjhandler.chat_doc, assistant, yzj_token, msg, is_auto_entry)
             result = {
                 "success": True,
                 "data": {"type": 2, "content": "请稍等..."}
@@ -182,23 +173,110 @@ class App(FastAPI):
             }
         return JSONResponse(content=result)
 
+    async def validation_exception_handler(self, request: Request, exc: RequestValidationError):
+        """处理请求验证错误"""
+        # 尝试获取原始请求体
+        try:
+            body = await request.json()
+        except:
+            body = {}
+
+        # 尝试从请求体中获取 cid 和 msgid
+        cid = body.get('cid', '')
+        msgid = body.get('msgid', '')
+
+        result = {
+            "ret_code": "000003",
+            "ret_msg": "输入验证错误",
+            "item": {
+                "cid": cid,
+                "msgid": msgid,
+                "answer_txt": str(exc),
+                "answer_txt_type": "0",
+                "answer_type": "3"
+            }
+        }
+        return JSONResponse(content=result, status_code=422)
+    async def zhihci_chat(self,msg: ZCRobotMsg) -> JSONResponse:
+        """
+        智齿对话接口
+        :param msg: 智齿机器人消息
+        :return: JSON响应
+        """
+        try:
+            logger.info(f"[zhichi_session_id={msg.cid}]输入消息: {msg}")
+            # 、获取assistant，智齿只需要配置一个assistant，所以直接取第一个即可
+            zhichi_asst_info = list(self.config_manager.index_data.get("zhichi_config",{}))
+            assistant_id = zhichi_asst_info[0] if len(zhichi_asst_info) > 0 else None
+            if not assistant_id:
+                logger.error(f"没有配置有效的助手id,请配置完后重试")
+                result = {
+                    "ret_code": "000001",
+                    "ret_msg": "没有配置助手id，请配置完后重试",
+                    "item": {"cid": msg.cid,
+                             "msgid": msg.msgid,
+                             "answer_txt": "没有配置助手id，请配置完后重试",
+                             "answer_txt_type": "0",
+                             "answer_type": "3"}
+                }
+                return JSONResponse(content=result)
+            assistant = self.get_assistant(assistant_id)
+            is_auto_entry = self.config_manager.index_data["zhichi_config"][assistant_id].get("is_auto_entry", False)
+            loop = asyncio.get_event_loop()
+            answer, has_answer = await loop.run_in_executor(executor, self.zhichihandler.chat_doc, assistant, msg, is_auto_entry)
+            result = {
+                "ret_code": "000000",
+                "ret_msg": "操作成功",
+                "item": {"cid": msg.cid,
+                         "msgid": msg.msgid,
+                         "answer_txt": answer,
+                         "answer_txt_type": "0",
+                         "answer_type": "1" if has_answer else "3"}
+            }
+            return JSONResponse(content=result)
+        except Exception as e:
+            logger.error(f"[zhichi_session_id={msg.cid}]: 出现错误:{e}.{traceback.format_exc()}")
+            result = {
+                    "ret_code": "000002",
+                    "ret_msg": "出现未知错误",
+                    "item": {"cid": msg.cid,
+                             "msgid": msg.msgid,
+                             "answer_txt": "",
+                             "answer_txt_type": "0",
+                             "answer_type": "3"}
+                }
+            return JSONResponse(content=result)
+
+    def sync_assistant(self, assistant_id: str):
+        assistant = self.get_assistant(assistant_id)
+        asst_type, _ = self.config_manager.get_asst_info_by_asst_id(assistant_id)
+        repo, toc_title = self.config_manager.get_yq_info_by_asst_id(assistant_id)
+        yzj_tokens = self.config_manager.get_yzj_token_by_asst_id(assistant_id)
+        sync_id = ASSISTANT_CONFIG[asst_type]['sync_flow_config']['id']
+        logger.info(f"语雀知识库'{toc_title}' 需要同步至assistant: '{assistant_id}'")
+        # 通知云之家需要开始同步
+        for yzj_token in yzj_tokens:
+            self.yzjhandler.notice_yzj_group(yzj_token=yzj_token, content="开始同步新文档至Assistant,如果有什么问题请同步结束后再提问。")
+        # 同步知识库数据到assistant
+        ret = self.sync_manager.sync_dict[sync_id].sync_yq_doc_to_dest(repo, toc_title, assistant)
+        success = "成功"
+        if ret:
+            logger.info(f"同步知识库'{toc_title}'数据到 assistant成功: {assistant_id}")
+        else:
+            success = "失败"
+        # 通知云之家同步结束
+        for yzj_token in yzj_tokens:
+            self.yzjhandler.notice_yzj_group(yzj_token=yzj_token, content=f"同步最新文档至Assistant{success}。")
+        return success
+
     async def force_sync(self, task: BackgroundTasks, assistant_id: str = Query(...)) -> JSONResponse:
         try:
             if assistant_id not in self.config_manager.get_all_asst_id() or not assistant_id:
                 logger.error(f"不存在assistant_id '{assistant_id}'，请重新输入")
                 result = {"success": False, "description": f"不存在assistant_id '{assistant_id}'，请重新输入"}
                 return JSONResponse(content=result)
-            assistant = self.get_assistant(assistant_id)
-            asst_type, _ = self.config_manager.get_asst_info_by_asst_id(assistant_id)
-            sync_id = ASSISTANT_CONFIG[asst_type]['sync_flow_config']['id']
-
-            if assistant.asst_type == ASSTType.NATIVE_ASST:
-                task.add_task(self.yzjhandler.manual_sync_gpt_assistant,
-                              self.sync_manager.sync_dict[sync_id], assistant)
-                result = {"success": True, "description": "正在同步中"}
-            else:
-                result = {"success": False, "description": f"未知助手类型 '{assistant.asst_type}'，同步助手失败"}
-                logger.error(f"[asst_id={assistant_id}]：未知助手类型 '{assistant.asst_type}'，同步助手失败：{e}")
+            task.add_task(self.sync_assistant,assistant_id)
+            result = {"success": True, "description": "正在同步中"}
             return JSONResponse(content=result)
         except Exception as e:
             result = {"success": False, "description": str(e)}
@@ -210,15 +288,9 @@ class App(FastAPI):
         定时同步: 包装同步函数为异步函数
         """
         try:
-            assistant = self.get_assistant(assistant_id)
-            asst_type, _ = self.config_manager.get_asst_info_by_asst_id(assistant_id)
-            sync_id = ASSISTANT_CONFIG[asst_type]['sync_flow_config']['id']
-            if asst_type == ASSTType.NATIVE_ASST:
-                result = await asyncio.get_running_loop().run_in_executor(
-                    None, self.yzjhandler.manual_sync_gpt_assistant, self.sync_manager.sync_dict[sync_id], assistant
-                )
-            else:
-                logger.error(f"[asst_id={assistant_id}]：未知助手类型 '{asst_type}'，同步助手失败：{e}")
+            result = await asyncio.get_running_loop().run_in_executor(
+                None, self.sync_assistant, assistant_id
+            )
         except Exception as e:
             logger.error(f"[asst_id={assistant_id}]：同步助手失败：{e}")
 
@@ -250,7 +322,7 @@ class App(FastAPI):
         :return:
         """
         # 需要更新的url和表头
-        yuque_url = "https://jdpiaozone.yuque.com/api/v2/repos/nbklz3/kro38t/docs/wthbafwdgo5zw783"
+        yuque_url = f"{YUQUE_CONFIG['yuque_base_url']}/repos/{YUQUE_CONFIG['yuque_namespace']}/{AUTO_ENTRY_CONFIG['repo']}/docs/{AUTO_ENTRY_CONFIG['slug']}"
         yuque_headers = {
             "X-Auth-Token": YUQUE_CONFIG["yuque_auth_token"],
             "User-Agent": YUQUE_CONFIG["yuque_request_agent"]
@@ -335,6 +407,25 @@ class App(FastAPI):
         self.scheduler.shutdown()
         logger.debug("关闭程序")
 
+    def update_config(self) -> None:
+        """更新配置"""
+        logger.info("开始更新配置...")
+        try:
+            add_repo, _, add_asst, _ = self.config_manager.update_config()
+            #
+            if add_repo:
+                self.sync_manager.update_yq_repos(add_repo)
+            if add_asst:
+                for asst_id in add_asst:
+                    asst = self.get_assistant(asst_id)
+                    if asst is not None:
+                        logger.info(f"[asst_id={asst_id}]：初始化助手成功")
+                    else:
+                        logger.info(f"[asst_id={asst_id}]：同步不成功，初始化助手失败")
+            logger.info("配置更新成功")
+        except Exception as e:
+            logger.error(f"配置更新失败：{e}.{traceback.format_exc()}")
+
     async def yuque_update_config(self, msg: YQMsg, task: BackgroundTasks):
         """
         基于语雀消息更新配置信息
@@ -347,7 +438,7 @@ class App(FastAPI):
             if action_type in ["update"]:
                 repo = msg.data["book"]["slug"]
                 doc_slug = msg.data["slug"]
-                if repo == CONFIG_REPO and doc_slug == CONFIG_SLUG:
+                if (repo,doc_slug) in self.config_manager.config_info_tuple:
                     task.add_task(self.update_config)
             result = {"success": True}
         except Exception as e:
@@ -366,7 +457,7 @@ class App(FastAPI):
             result = {"success": False, "description": str(e)}
             logger.error(f"配置更新失败：{e}.{traceback.format_exc()}")
         return JSONResponse(content=result)
-    async def get_config(self):
+    def get_config(self):
         try:
             result = {"success": True, "description": "操作成功",
                       "data": self.config_manager.index_data}
@@ -374,7 +465,7 @@ class App(FastAPI):
             result = {"success": False, "description": str(e)}
             logger.error(f"获取配置失败：{e}.{traceback.format_exc()}")
         return JSONResponse(content=result)
-    async def empty_files(self, assistant_id: str = Query(...)):
+    def empty_files(self, assistant_id: str = Query(...)):
         """
         清空assistant的文件
         :return:

@@ -8,18 +8,19 @@ from openai.types.beta.threads import Run
 from src.qa_assistant.base_assistant import BaseAssistant, ASSTType
 from src.utils.logger import logger
 from src.utils.data_process import process_topic_name
-from src.utils.database import SQLDatabase,FileAndUrlTable
+from src.utils.database import SQLDatabase, FileAndUrlTable, FAQ
 
 # Assistant类，用于处理openai的对话请求
 class Assistant(BaseAssistant):
-    def __init__(self, assistant_id: str, assistant_config: dict, topic:str, database:SQLDatabase):
-        super().__init__(assistant_id, assistant_config)
+    def __init__(self, assistant_id: str, assistant_config: dict, llm_configs: dict, topic: str, database: SQLDatabase):
+        super().__init__(assistant_id, assistant_config, llm_configs)
         self.topic = process_topic_name(topic)
-        self.asst_type = ASSTType.NATIVE_ASST
+        self.asst_type = ASSTType.OPENAI_ASSISTANT
         self.database = database
         self.table_class = FileAndUrlTable
         self.database.create_table(self.table_class)
-        self.thread_map = {}  # 英文指定id创建thread，所以需要一个map来存储session id(robot id + "~" + operatorOpenId)和thread_id的映射关系
+        self.thread_map = {}
+        # 英文指定id创建thread，所以需要一个map来存储session id和thread_id的映射关系， TODO:后续换成 redis缓存或者MYSQL
 
     def get_vector_store_ids(self):
         vector_store = []
@@ -103,17 +104,21 @@ class Assistant(BaseAssistant):
 
         if run.status == "completed":
             messages = self.client.beta.threads.messages.list(thread_id=thread_id, limit=1)
-            logger.debug(f"[{session_id}]: {messages.data[0].content[0]}")
+            logger.debug(f"[session_id={session_id}]: {messages.data[0].content[0]}")
             message_content = messages.data[0].content[0].text
             if message_content.annotations:
                 message_content = self.process_annotation(message_content)
-            return message_content.value
-        logger.debug(f"[asst_id={self.assistant_id}][session_id={session_id}]状态：{run.status}")
+            # 判断是否包含答案
+            has_answer_key = ["上述问题无法在标准知识库中找到答案", "在标准知识库中未能找到明确答案",
+                              "上述问题无法在标凈知识库找到答案", "上述问题无法在标净知识库找到答案"]
+            has_answer = not any(phrase in message_content.value for phrase in has_answer_key)
+
+            return message_content.value, has_answer
         if run.status == "failed":
             logger.error(f"[asst_id={self.assistant_id}][session_id={session_id}]状态：{run.status}. 明细:\n{run.last_error.message}")
         else:
             logger.error(f"[asst_id={self.assistant_id}][session_id={session_id}]状态：{run.status}.")
-        return None
+        return None, False
 
     def process_annotation(self, message_content):
         annotations = message_content.annotations
@@ -221,7 +226,7 @@ class Assistant(BaseAssistant):
                     deleted_vector_store = self.client.beta.vector_stores.delete(vector_store_id=vector_store_id)
                     if not deleted_vector_store.deleted:
                         logger.error(
-                            f"[asst_id={self.assistant_id}]：删除向量库 '{deleted_vector_store.id}' 失败, 请后续手动删除后重新同步数据"
+                            f"[asst_id={self.assistant_id}]：删除向量库 '{deleted_vector_store.id}' 失败, 请后续手动删除并重新同步数据"
                         )
                     else:
                         logger.info(f"[asst_id={self.assistant_id}]: 已删除向量库 '{deleted_vector_store.id}'")
@@ -277,23 +282,23 @@ class Assistant(BaseAssistant):
                     }
                 )
 
+            success_count = len(vector_store_files) - len(failed_vector_store_files) #成功删除的文件数量
+
             # 删除整个向量库
             if is_processing_files or failed_vector_store_files or failed_openai_files or is_expired:
                 logger.info(
-                    f"[asst_id={self.assistant_id}]：向量库 '{vector_store_id}' 下的部分文件正在处理中, 无法正常删除, 强制删除整个向量库"
+                    f"[asst_id={self.assistant_id}]：向量库 '{vector_store_id}' 下的部分文件正在处理中或无法正常删除, 强制删除整个向量库"
                 )
                 deleted_vector_store = self.client.beta.vector_stores.delete(
                     vector_store_id=vector_store_id
                 )
                 if not deleted_vector_store.deleted:
                     logger.error(
-                        f"[asst_id={self.assistant_id}]：删除向量库 '{deleted_vector_store.id}' 失败, 请后续手动删除后重新同步数据"
+                        f"[asst_id={self.assistant_id}]：删除向量库 '{deleted_vector_store.id}' 失败, 请后续手动删除并重新同步数据"
                     )
+                else:
+                    success_count = len(vector_store_files)
 
-            success_count = (
-                    len(vector_store_files)
-                    - len(failed_vector_store_files)
-            )
             logger.info(
                 f"[asst_id={self.assistant_id}]：已清空助手的文件: {success_count}/{len(vector_store_files)}"
             )
@@ -328,28 +333,6 @@ class Assistant(BaseAssistant):
             )
         return self.upload_file(file_paths_and_urls,vector_store_ids[0])
 
-        # file_streams = []
-        # try:
-        #     for path in file_paths:
-        #         file_streams.append(open(path, "rb"))
-        #     logger.debug(f"[asst_id={self.assistant_id}]：上传{len(file_paths)}个文件到向量库 '{vector_store_ids[0]}'")
-        #
-        #     # 上传文件到vector store，并轮询文件上传和处理状态
-        #     file_batch = self.client.beta.vector_stores.file_batches.upload_and_poll(
-        #         vector_store_id=vector_store_ids[0], files=file_streams
-        #     )
-        #     # file_batch = self.client.beta.vector_stores.file_batches.upload_and_poll(
-        #     #     vector_store_id=vector_store_ids[0], files=file_streams,chunking_strategy=self.chunking_strategy
-        #     # )
-        #     if file_batch.status == "completed":
-        #         logger.info(f"上传文件成功：{file_batch.file_counts}")
-        #         return True
-        #     logger.error(f"上传文件状态{file_batch.status}：{file_batch.file_counts}")
-        #     return False
-        # finally:
-        #     # 确保所有文件都被关闭
-        #     for file_stream in file_streams:
-        #         file_stream.close()
     def upload_file(self,file_paths_and_urls: list, vector_store_id: str) -> bool:
         file_streams = []
         results = []
@@ -391,14 +374,23 @@ class Assistant(BaseAssistant):
                 # chunking_strategy=chunking_strategy
             )
             if file_batch.status == "completed":
-                logger.info(f"上传文件成功：{file_batch.file_counts}")
+                logger.info(f"[asst_id={self.assistant_id}]：上传文件成功：{file_batch.file_counts}")
                 return True
-            logger.error(f"上传文件状态{file_batch.status}：{file_batch.file_counts}")
+            logger.error(f"[asst_id={self.assistant_id}]：上传文件状态{file_batch.status}：{file_batch.file_counts}")
             return False
         finally:
             # 确保所有文件都被关闭
             for _, file_stream in file_streams:
                 file_stream.close()
+
+    def save_faq_to_database(self, topic_name: str = "", question: str = "", answer: str = "",
+                             has_answer: bool = False, asker: str = "") -> None:
+        has_answer = '是' if has_answer else '否'
+        upload_data = {'topic_name': topic_name, 'question': question, 'answer': answer, 'has_answer': has_answer,
+                       'asker': asker}
+        self.database.insert_data(FAQ, upload_data)
+        logger.info(f"[asst_id={self.assistant_id}]：问答数据录入成功")
+
 
 
     def del_assistant(self) -> None:
@@ -427,4 +419,12 @@ class Assistant(BaseAssistant):
             thread_id = self.thread_map.get(session_id)
             self.client.beta.threads.delete(thread_id)
         self.thread_map = {}
+    def del_thread(self,session_id) -> None:
+        """
+        删除thread
+        """
+        if session_id in self.thread_map:
+            thread_id = self.thread_map.get(session_id)
+            self.client.beta.threads.delete(thread_id)
+            del self.thread_map[session_id]
 

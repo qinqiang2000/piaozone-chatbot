@@ -5,38 +5,39 @@ from dotenv import load_dotenv
 from src.qa_assistant.base_assistant import ASSTType
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(override=True)
+################## 大模型平台的相关配置 ##################
+LLM_CONFIGS = {
+    "azure_openai": {
+        "api_key": os.getenv("AZURE_OPENAI_API_KEY"),
+        "api_version": os.getenv("OPENAI_API_VERSION"),
+        "endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
+        "model_map_table": {
+            "gpt-4o-assistant": "gpt-4o"
+        }
+    },
+    "openai": {
+        "api_key": os.getenv("OPENAI_API_KEY"),
+    }
+}
 
 ################## assistant配置 ##################
-# 1.直接使用openai assistant自带的retrieval工具实现的问答助手
+# 1.NATIVE_ASST: 直接使用openai assistant自带的retrieval工具实现的问答助手
 ASSISTANT_CONFIG = {
-    ASSTType.NATIVE_ASST:{
-        "asst_type": ASSTType.NATIVE_ASST,
+    "openai_assistant": {
+        "asst_type": "openai_assistant",
         # 详见 src/qa_assistant/base_assistant.py的 ASSTType, options: 0, 1; 0: NATIVE_ASST, 1: ASST_WITH_SIMPLE_RAG
-        "llm_option": "openai",  # 详见 src/qa_assistant/base_assistant.py的 ASSTLLMType, options: "openai", "azure"
-        "llm_config": {
-            "openai": {
-                "openai_api_key": os.getenv("OPENAI_API_KEY"),
-                "model_name": "gpt-4o"
-            },
-            "azure": {
-                "azure_openai_api_key": os.getenv("AZURE_OPENAI_API_KEY"),
-                "openai_api_version": os.getenv("OPENAI_API_VERSION"),
-                "azure_openai_endpoint": os.getenv("AZURE_OPENAI_ENDPOINT"),
-                "model_name": os.getenv("OPENAI_DEPLOYMENT_NAME")
-            }
-        },
-        # "chunking_strategy":{},
+        # "llm_option": "openai",  # 详见 LLM_CONFIGS, options: "openai", "azure_openai"
         "sync_flow_config": {
-            "id":"sync_dest_0", #用于识别不同的同步流程
-            "type":"openai-asst",
-            "params":{
+            "id": "sync_dest_0", # 用于识别不同的同步流程
+            "type": "openai-asst",
+            "params": {
                 "file_num_limit": 10000,
                 "file_token_limit": 5000000
             }
 
         }
     }
-} #每一个assistant 的asst_type不能重复
+}
 ################## 同步设置 ##################
 ##同步的目的地类型 ： "openai-asst"
 SYNC_CONFIGS = []
@@ -53,8 +54,16 @@ YUQUE_CONFIG = {
 
 ################## 配置文件设置 ##################
 #语雀知识库、ai助手、云之家群关系的配置地址
-CONFIG_REPO = "kro38t" #配置文件所在语雀知识库id
-CONFIG_SLUG = "en71melffu178kvp" #配置文件的文档slug
+# CONFIG_REPO = "kro38t" #配置文件所在语雀知识库id
+# CONFIG_SLUG = "en71melffu178kvp" #配置文件的文档slug
+CONFIG_INFO = {
+    "asst_info_repo": "kro38t",
+    "asst_info_slug": "adg5ul0a6ehvpwpw",
+    "yzj_info_repo": "kro38t",
+    "yzj_info_slug": "uv7ykd2p34i8vdko",
+    "zhichi_info_repo": "kro38t",
+    "zhichi_info_slug": "ci28alu28xbv4feb",
+ }
 
 ################## 云之家配置 ##################
 YUNZHIJIA_CONFIG = {
@@ -62,10 +71,15 @@ YUNZHIJIA_CONFIG = {
     "max_img_num_in_card_notice": 5,
     "card_notice_template_id": "64d08cb4e4b07ba2b112b395"
 }
+################## 自动录入地址配置 ##################
+AUTO_ENTRY_CONFIG = {
+    "repo": "kro38t",
+    "slug": "wthbafwdgo5zw783"
+}
 
 ################## 日志 ##################
 LOG_DIR = os.path.join(root_dir, 'logs')
-LOG_LEVEL = "debug"
+LOG_LEVEL = "info"
 
 ################# database ################
 DB_CONFIG = {
@@ -76,8 +90,5 @@ DB_CONFIG = {
     "db": os.getenv("DB_DB"),
     "charset": os.getenv("DB_CHARSET")
 }
-# PIAOZONE_TOKEN_URL = "https://api-dev.piaozone.com/test/base/exception/login/token"
-# PIAOZONE_TOKEN_BODY = "U5/yFNQySPUsjrHqSDUFl58fJ7OxHT8W4KWJqK4tLd/ze1/IIFtmActgeM8VxT4uAUn4cW75sKLbaLXPOMFYTVQ+XJDmwosnJ+qsangGMujLo2S3zQqQ/AU8TUd7qgrdYdEKKBLoTIXeCoBA3jjH4u9h+PvFcwfQuSgJbmKwomc="
-# PIAOZONE_ADD_SOBOT_DOC_URL = "https://api-dev.piaozone.com/test/portal/m19/customer-service/sobot-doc/with-yuque-slug?access_token="
 
 

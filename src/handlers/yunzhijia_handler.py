@@ -8,16 +8,11 @@
 """
 from typing import Optional
 import requests
-
 from pydantic import BaseModel
-import httpcore
-
-from src.qa_assistant.base_assistant import BaseAssistant
 from src.utils.logger import logger
 from src.utils.data_process import (
     parse_img_urls,
     remove_html_tags)
-from src.utils.database import SQLDatabase,Base,FAQ
 
 
 
@@ -32,8 +27,6 @@ class YZJRobotMsg(BaseModel):
     time: int
     sessionId: Optional[str] = None
 
-class YQMsg(BaseModel):
-    data: Optional[dict] = None
 
 
 class YZJHandler:
@@ -47,14 +40,12 @@ class YZJHandler:
 
     def process_message(self, yzj_message: YZJRobotMsg):
         # 处理云之家消息
-        # 取
         try:
             robotName = yzj_message.robotName
-            logger.info(f"[{yzj_message.robotId}~{yzj_message.operatorOpenid}]:未处理前消息： {yzj_message.content}")
             yzj_message.content = yzj_message.content.replace(f"@{robotName}", '')
             # 去除yzj_message.content中的前后空格
             yzj_message.content = yzj_message.content.strip()
-            logger.info(f"[{yzj_message.robotId}~{yzj_message.operatorOpenid}]: {yzj_message}")
+            logger.debug(f"[yzj_robot_id={yzj_message.robotId}]: {yzj_message}")
         except Exception as e:
             logger.error(f"云之家消息处理失败，错误信息：{e}")
         return yzj_message
@@ -107,7 +98,7 @@ class YZJHandler:
                 data_content[f"bigImage{j}Url"] = img_url
         return data_content
 
-    def chat_doc(self, qa_assistant, yzj_token, msg: YZJRobotMsg,  database):
+    def chat_doc(self, qa_assistant, yzj_token, msg: YZJRobotMsg, is_auto_entry=False):
         """
         调用问答助手获取答案
         :param qa_assistant:
@@ -117,16 +108,17 @@ class YZJHandler:
         """
         output = "抱歉，大模型响应超时，请稍后再试"
         session_id = msg.sessionId
+        has_answer = False
         try:
             if not msg.content.strip():
                 output = "抱歉，输入内容为空，请输入有效内容"
             else:
-                answer = qa_assistant.chat(session_id, msg.content)
+                answer, has_answer = qa_assistant.chat(session_id, msg.content)
                 if answer:
                     output = answer
         except Exception as e:
-            logger.error(f"大模型响应超时，session_id '{session_id}':{e}")
-        logger.info(f"[asst_id={qa_assistant.assistant_id};session_id={session_id}; operatorOpenid={msg.operatorOpenid}] --> {output} ")
+            logger.error(f"大模型响应超时，yzj session_id '{session_id}':{e}")
+        logger.info(f"[asst_id={qa_assistant.assistant_id};yzj_session_id={session_id}]回答内容: {output} ")
 
         try:
             # 先截取图片url
@@ -145,66 +137,18 @@ class YZJHandler:
             logger.error(f"云之家消息处理失败，错误信息：{e}")
 
         #获取需要的信息并录入到数据库：
-        _, topic_name = self.config_manager.get_yq_info_by_yzj_token(yzj_token)
-        question = msg.content
-        ans = output
-        has_answer_key = ["上述问题无法在标准知识库中找到答案", "在标准知识库中未能找到明确答案",
-                          "上述问题无法在标凈知识库找到答案", "上述问题无法在标净知识库找到答案"]
-        has_answer = '否' if any(phrase in ans for phrase in has_answer_key) else '是'
-        asker = msg.operatorName
-        upload_data = {'topic_name': topic_name, 'question': question, 'answer': ans, 'has_answer': has_answer,
-                'asker': asker}
-        database.insert_data(FAQ, upload_data)
-        logger.info("数据录入成功")
+        if is_auto_entry:
+            _, topic_name = self.config_manager.get_yq_info_by_yzj_token(yzj_token)
+            qa_assistant.save_faq_to_database(topic_name=topic_name,
+                                              question=msg.content,
+                                              answer=output,
+                                              has_answer=has_answer,
+                                              asker=msg.operatorName)
 
 
-    def sync_gpt_assistant_on_yzj(self, sync_flow, yzj_token, assistant: BaseAssistant, msg: YZJRobotMsg):
-        """
-        基于云之家的消息，同步知识库数据到gpt assistant，同时通知云之家
-        :param sync_flow:
-        :param yzj_token:
-        :param assistant:
-        :param msg:
-        :return:
-        """
-        success = "成功"
-        repo, toc_title, assistant_id = self.config_manager.get_info_by_yzj_token(yzj_token)
 
-        ret = sync_flow.sync_yq_doc_to_dest(repo, toc_title, assistant)
-        if ret:
-            logger.info(f"同步知识库'{toc_title}'数据到gpt assistant成功: {assistant_id}")
-        else:
-            success = "失败"
-
-        data = {"content": f"同步最新文档至Assistant{success}",
-                "notifyParams": [{"type": "openIds", "values": [msg.operatorOpenid]}]}
-        requests.post(self.yunzhijia_notify_url.format(yzj_token), json=data)
-    def manual_sync_gpt_assistant(self, sync_flow, assistant):
-        """
-        手动同步，同步知识库数据到gpt assistant，同时通知云之家
-        :param sync_flow:
-        :param msg:
-        :return:
-        """
-        assistant_id = assistant.assistant_id
-        repo, toc_title = self.config_manager.get_yq_info_by_asst_id(assistant_id)
-        yzj_tokens = self.config_manager.get_yzj_token_by_asst_id(assistant_id)
-        logger.info(f"语雀知识库'{toc_title}' 需要同步至gpt assistant: '{assistant_id}'")
-        # 通知云之家需要开始同步
-        start_data = {"content": f"开始同步新文档至Assistant,如果有什么问题请同步结束后再提问。"}
-        for yzj_token in yzj_tokens:
-            requests.post(self.yunzhijia_notify_url.format(yzj_token), json=start_data)
-        # 同步知识库数据到gpt assistant
-        ret = sync_flow.sync_yq_doc_to_dest(repo, toc_title, assistant)
-        success = "成功"
-        if ret:
-            logger.info(f"同步知识库'{toc_title}'数据到gpt assistant成功: {assistant_id}")
-        else:
-            success = "失败"
-        # 通知云之家同步结束
-        data = {"content": f"同步最新文档至Assistant{success}。"}
-        for yzj_token in yzj_tokens:
-            requests.post(self.yunzhijia_notify_url.format(yzj_token), json=data)
-        return success
+    def notice_yzj_group(self, yzj_token, content):
+        start_data = {"content": content}
+        requests.post(self.yunzhijia_notify_url.format(yzj_token), json=start_data)
 
 

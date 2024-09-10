@@ -1,0 +1,16 @@
+CREATE TABLE IF NOT EXISTS t_file_and_url_mapping (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    assistant_id VARCHAR(255) NOT NULL,
+    file_id VARCHAR(255) NOT NULL,
+    url VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS FQA_record (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    topic_name TEXT NOT NULL,
+    question LONGTEXT NOT NULL,
+    answer LONGTEXT NOT NULL,
+    has_answer TEXT NOT NULL,
+    asker TEXT NOT NULL,
+    entry_time DATETIME DEFAULT CURRENT_TIMESTAMP
+);

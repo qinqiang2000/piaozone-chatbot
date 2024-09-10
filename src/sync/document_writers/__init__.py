@@ -7,4 +7,3 @@
 ===========================
 """
 from src.sync.document_writers.openai_asst_writer import OpenAIAsstWriter
-from src.sync.document_writers.simple_rag_writer import SimpleRagWriter

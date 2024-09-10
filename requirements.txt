@@ -1,4 +1,4 @@
-openai==1.33.0
+openai==1.44.1
 celery
 openpyxl
 numpy

@@ -191,7 +191,7 @@ class YQReader:
             "X-Auth-Token": self.YUQUE_AUTH_TOKEN,
             "User-Agent": self.YUQUE_REQUEST_AGENT
         }
-        logger.info(f"请求获取单个语雀文档 {url}")
+        logger.debug(f"请求获取单个语雀文档 {url}")
         try:
             response = requests.get(url=url, headers=headers)
             response.raise_for_status()

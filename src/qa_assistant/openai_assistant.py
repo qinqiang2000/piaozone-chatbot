@@ -18,7 +18,7 @@ class Assistant(BaseAssistant):
         self.asst_type = ASSTType.OPENAI_ASSISTANT
         self.database = database
         self.table_class = FileAndUrlTable
-        self.database.create_table(self.table_class)
+        # self.database.create_table(self.table_class)
         self.thread_map = {}
         # 英文指定id创建thread，所以需要一个map来存储session id和thread_id的映射关系， TODO:后续换成 redis缓存或者MYSQL
 
@@ -104,7 +104,7 @@ class Assistant(BaseAssistant):
 
         if run.status == "completed":
             messages = self.client.beta.threads.messages.list(thread_id=thread_id, limit=1)
-            logger.debug(f"[session_id={session_id}]: {messages.data[0].content[0]}")
+            logger.debug(f"[asst_id={self.assistant_id}][thread_id={thread_id}][session_id={session_id}][run_id={run.id}]: {messages.data[0].content[0]}")
             message_content = messages.data[0].content[0].text
             if message_content.annotations:
                 message_content = self.process_annotation(message_content)
@@ -115,9 +115,9 @@ class Assistant(BaseAssistant):
 
             return message_content.value, has_answer
         if run.status == "failed":
-            logger.error(f"[asst_id={self.assistant_id}][session_id={session_id}]状态：{run.status}. 明细:\n{run.last_error.message}")
+            logger.error(f"[asst_id={self.assistant_id}][run_id={run.id}][session_id={session_id}]状态：{run.status}. 明细:\n{run.last_error.message}")
         else:
-            logger.error(f"[asst_id={self.assistant_id}][session_id={session_id}]状态：{run.status}.")
+            logger.error(f"[asst_id={self.assistant_id}][run_id={run.id}][session_id={session_id}]状态：{run.status}.")
         return None, False
 
     def process_annotation(self, message_content):
@@ -427,4 +427,9 @@ class Assistant(BaseAssistant):
             thread_id = self.thread_map.get(session_id)
             self.client.beta.threads.delete(thread_id)
             del self.thread_map[session_id]
+    def get_thread_id(self,session_id) -> str:
+        """
+        获取thread_id
+        """
+        return self.thread_map.get(session_id)
 

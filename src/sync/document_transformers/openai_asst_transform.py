@@ -25,28 +25,29 @@ class OpenAIAsstTransformer:
         self.FILE_NUM_LIMIT = file_num_limit
         self.FILE_TOKEN_LIMIT = file_token_limit
         self.tmp_dir = os.path.join(os.path.dirname(__file__), "../../../openai_tmp")
-    def __call__(self,yuque_docs: List[dict],assistant_id: str, base_url: str):
+    def __call__(self,yuque_docs: List[dict],assistant_id: str, base_url: str, file_name_prefix: str=""):
         max_file_num = self.FILE_NUM_LIMIT
-        # 1、先清空临时文件夹下的文件
+        # 1、将文档拆分为普通文档、表格文档、faq文档
+        docs, table_docs, faq_docs = self.split_docs(yuque_docs)
+        # 2、保存faq文档
+        faq_paths = self.transform_faq(faq_docs, assistant_id, base_url,self.FILE_TOKEN_LIMIT, max_file_num,file_name_prefix)
+        max_file_num -= len(faq_paths)
+        table_docs_paths = self.transform_table_docs(table_docs, assistant_id, base_url,self.FILE_TOKEN_LIMIT, max_file_num,file_name_prefix)
+        max_file_num -= len(table_docs_paths) if table_docs_paths is not None else 0
+        docs_paths = self.transform_docs(docs, assistant_id, base_url,self.FILE_TOKEN_LIMIT, max_file_num,file_name_prefix)
+        if faq_paths:
+            docs_paths.extend(faq_paths)
+        if table_docs_paths:
+            docs_paths.extend(table_docs_paths)
+        return docs_paths
+    def empty_cache(self, assistant_id: str):
+        """清空临时文件夹下的文件"""
         base_path = os.path.join(self.tmp_dir, str(assistant_id))
         if os.path.exists(base_path):
             for file in os.listdir(base_path):
                 file_path = os.path.join(base_path, file)
                 if os.path.isfile(file_path):
                     os.remove(file_path)
-        # 2、将文档拆分为普通文档、表格文档、faq文档
-        docs, table_docs, faq_docs = self.split_docs(yuque_docs)
-        # 3、保存faq文档
-        faq_paths = self.transform_faq(faq_docs, assistant_id, base_url,self.FILE_TOKEN_LIMIT,max_file_num)
-        max_file_num -= len(faq_paths)
-        table_docs_paths = self.transform_table_docs(table_docs, assistant_id, base_url,self.FILE_TOKEN_LIMIT, max_file_num)
-        max_file_num -= len(table_docs_paths) if table_docs_paths is not None else 0
-        docs_paths = self.transform_docs(docs, assistant_id, base_url,self.FILE_TOKEN_LIMIT, max_file_num)
-        if faq_paths:
-            docs_paths.extend(faq_paths)
-        if table_docs_paths:
-            docs_paths.extend(table_docs_paths)
-        return docs_paths
 
     def split_docs(self, yq_docs: List[dict]):
         """
@@ -80,7 +81,8 @@ class OpenAIAsstTransformer:
                 logger.warning(f"文档 '{doc['title']}' 的内容超过{max_tokens_per_file}个token，已截断")
                 doc["body"] = doc_body
         return docs
-    def transform_faq(self,faq_docs: List[dict], assistant_id: str, base_url:str, max_tokens_per_file: int, max_file_num: int) -> list:
+    def transform_faq(self,faq_docs: List[dict], assistant_id: str, base_url:str,
+                      max_tokens_per_file: int, max_file_num: int, file_name_prefix: str="") -> list:
         """
         处理faq文档
         :param faq_docs: faq文档
@@ -89,7 +91,7 @@ class OpenAIAsstTransformer:
         """
         faq_paths = []
         if not faq_docs:
-            logger.warning("本次同步的知识库文档中没有符合faq规定的相关文档，请检查")
+            logger.warning(f"[asst_id={assistant_id}]：本次同步的知识库文档中没有符合faq规定的相关文档，请检查")
             return faq_paths
         new_faq_docs = []
         for doc in faq_docs:
@@ -106,24 +108,11 @@ class OpenAIAsstTransformer:
 
         # 将文档内容分配到多个文件中，以应对gpt assistant的文件上限
 
-        faq_paths = self.distribute_docs(new_faq_docs, max_file_num, base_path, "md")
+        faq_paths = self.distribute_docs(new_faq_docs, max_file_num, base_path, "md",file_name_prefix)
 
-        # if len(new_faq_docs) == 1:
-        #     faq_path = os.path.join(self.tmp_dir, f"{assistant_id}/faq.md")
-        #     faq_paths.append(faq_path)
-        #     os.makedirs(os.path.dirname(faq_path), exist_ok=True)
-        #     with open(faq_path, "w", encoding="utf-8") as file:
-        #         file.write(new_faq_docs[0]["body"])
-        #     return faq_paths
-        #
-        # for idx, doc in enumerate(new_faq_docs):
-        #     faq_path = os.path.join(self.tmp_dir, f"{assistant_id}/faq_{idx}.md")
-        #     faq_paths.append(faq_path)
-        #     os.makedirs(os.path.dirname(faq_path), exist_ok=True)
-        #     with open(faq_path, "w", encoding="utf-8") as file:
-        #         file.write(doc["body"])
         return faq_paths
-    def transform_table_docs(self, docs: List[dict], assistant_id: str, base_url: str, max_tokens_per_file: int, max_file_num: int) -> list:
+    def transform_table_docs(self, docs: List[dict], assistant_id: str, base_url: str,
+                             max_tokens_per_file: int, max_file_num: int, file_name_prefix: str="") -> list:
         """
         处理表格文档
         :param docs: 表格文档
@@ -131,10 +120,10 @@ class OpenAIAsstTransformer:
         :return: 表格文档的路径
         """
         if not docs:
-            logger.info(f"本次同步的知识库文档中, 没有表格：{assistant_id}")
+            logger.info(f"[asst_id={assistant_id}]：本次同步的知识库文档中, 没有表格")
             return []
         if max_file_num <= 0:
-            logger.warning(f"{assistant_id}:文档数量超过限制,请减少文档数量")
+            logger.warning(f"[asst_id={assistant_id}]：文档数量超过限制,请减少文档数量")
             return []
 
         htm_docs = []
@@ -148,14 +137,14 @@ class OpenAIAsstTransformer:
                     table = sheet['table']
                     if not table or table == [['']]:
                         continue
-                    sheet_id = sheet.get('id',"")
+                    sheet_id = sheet.get('id', "")
                     df = pd.DataFrame(table)
                     data_process.clear_pd_nan(df)
                     htm = f"<h1>{doc['title']}</h1>\n<h2>{sheet['name']}</<h2>\n" + df.to_html(index=False)
                     file_name = data_process.process_file_name(doc["title"]) + "_" + data_process.process_file_name(sheet["name"])
                     htm_docs.append({"title": file_name,"body": htm,"url":f"{base_url}/{doc['slug']}?singleDoc#{sheet_id}"})
                 except Exception as e:
-                    logger.error(f"表格文档[{doc['title']} - {sheet['name']}]转换失败：{e}.{traceback.format_exc()}")
+                    logger.error(f"[asst_id={assistant_id}]：表格文档[{doc['title']} - {sheet['name']}]转换失败：{e}.{traceback.format_exc()}")
 
         htm_docs = self.limit_doc_token(docs=htm_docs,max_tokens_per_file=max_tokens_per_file)
 
@@ -163,9 +152,10 @@ class OpenAIAsstTransformer:
         os.makedirs(base_path, exist_ok=True)
 
         # 将文档内容分配到多个文件中，以应对gpt assistant的文件上限
-        table_paths = self.distribute_docs(htm_docs, max_file_num, base_path, "html")
+        table_paths = self.distribute_docs(htm_docs, max_file_num, base_path, "html",file_name_prefix)
         return table_paths
-    def transform_docs(self, docs, assistant_id, base_url:str,max_tokens_per_file: int, max_file_num: int):
+    def transform_docs(self, docs, assistant_id, base_url:str,max_tokens_per_file: int,
+                       max_file_num: int, file_name_prefix: str="") -> list:
         if len(docs) == 0:
             logger.warning(f"[asst_id={assistant_id}]：语雀文档中没有符合规定的相关文档，请检查")
             return []
@@ -188,10 +178,11 @@ class OpenAIAsstTransformer:
 
         # 将文档内容分配到多个文件中，以应对gpt assistant的文件上限
 
-        file_paths = self.distribute_docs(new_docs, max_file_num,base_path,"md")
+        file_paths = self.distribute_docs(new_docs, max_file_num,base_path,"md",file_name_prefix)
 
         return file_paths
-    def distribute_docs(self, docs: List[dict], max_file_num: int, base_path:str ="./tmp", suffix="md"):
+    def distribute_docs(self, docs: List[dict], max_file_num: int, base_path:str ="./tmp",
+                        suffix="md", file_name_prefix: str=""):
         """
         将文件内容平均分配到FILE_NUM_LIMIT个文件中
         :param docs:
@@ -214,7 +205,7 @@ class OpenAIAsstTransformer:
             for index in range(limit):
                 # 语雀实际文档数小于assistant的文件上限数，一个语雀文档对应一个assistant文件即可
                 doc = docs[index]
-                file_name = data_process.process_file_name(doc["title"])
+                file_name = data_process.process_file_name(file_name_prefix+"-"+doc["title"] if file_name_prefix else doc["title"])
                 while file_name in exist_file_names:
                     file_name = f"{file_name}_{index}"
                 file_path = os.path.join(base_path, file_name + "." +suffix)
@@ -231,7 +222,7 @@ class OpenAIAsstTransformer:
         else:
             for index in range(limit):
                 # 初始化ASSISTANT_FILE_NUM_LIMIT个文件
-                file_path = os.path.join(base_path, str(index + 1) + f".{suffix}")
+                file_path = os.path.join(base_path, f"{file_name_prefix}-{index + 1}.{suffix}" if file_name_prefix else f"{index + 1}.{suffix}")
                 with open(file_path, 'w', encoding="utf-8") as file:
                     file.write("")
                     file_buckets.append(file)

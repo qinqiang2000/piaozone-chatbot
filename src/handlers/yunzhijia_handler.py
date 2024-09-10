@@ -138,7 +138,8 @@ class YZJHandler:
 
         #获取需要的信息并录入到数据库：
         if is_auto_entry:
-            _, topic_name = self.config_manager.get_yq_info_by_yzj_token(yzj_token)
+            yq_info = self.config_manager.get_yq_info_by_yzj_token(yzj_token)
+            topic_name = '-'.join([title for _, title in yq_info])
             qa_assistant.save_faq_to_database(topic_name=topic_name,
                                               question=msg.content,
                                               answer=output,

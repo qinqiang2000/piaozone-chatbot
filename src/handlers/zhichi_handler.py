@@ -49,7 +49,8 @@ class ZhiChiHandler:
         logger.info(f"[asst_id={qa_assistant.assistant_id};zhichi_session_id={session_id}]回答内容: {output} ")
         try:
             if is_auto_entry:
-                _, topic_name = self.config_manager.get_yq_info_by_asst_id(qa_assistant.assistant_id)
+                yq_info = self.config_manager.get_yq_info_by_asst_id(qa_assistant.assistant_id)
+                topic_name = '-'.join([title for _, title in yq_info])
                 qa_assistant.save_faq_to_database(topic_name=topic_name,
                                                   question=msg.query_txt,
                                                   answer=output,

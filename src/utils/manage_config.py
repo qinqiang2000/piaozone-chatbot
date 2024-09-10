@@ -43,15 +43,13 @@ class ConfigManager:
         df.drop_duplicates(inplace=True)
         df = df.astype(str).apply(lambda x: x.str.strip())
         df = df[df["valid"] == "Y"]
-        # df["assistant_type"] = df["assistant_type"].apply(float).apply(int)
-        # df.drop_duplicates(subset=["yzj_token"], inplace=True)  # 多个yzj_token可以对应一个assistant,yzj_token则是唯一的
         return df
     def _build_asst_index_data(self, config_df: pd.DataFrame) -> None:
         """
         根据配置数据构建索引数据, 提高查询效率
         :param config_df: 配置数据 DataFrame
         """
-        config_df.drop_duplicates(subset=["assistant_id"], inplace=True) # 每个助手具有一个唯一的id
+        config_df.drop_duplicates(subset=["assistant_id", "repo", "toc_title"], inplace=True) # (助手id、repo、toc_title)是唯一的
         index_data = {}
         for _, row in config_df.iterrows():
             repo = row["repo"]
@@ -59,12 +57,14 @@ class ConfigManager:
             assistant_id = row["assistant_id"]
             assistant_type = row["assistant_type"]
             llm_type = row["llm_type"]
-            index_data[assistant_id] = {
-                "assistant_type": assistant_type,
-                "llm_type": llm_type,
-                "repo": repo,
-                "toc_title": toc_title,
-            }
+            if assistant_id not in index_data:
+                index_data[assistant_id] = {
+                    "assistant_type": assistant_type,
+                    "llm_type": llm_type,
+                    "yq_info": [(repo, toc_title)]
+                }
+            else:
+                index_data[assistant_id]["yq_info"].append((repo, toc_title))
         return index_data
     def _build_yzj_index_data(self, config_df: pd.DataFrame) -> None:
         """
@@ -95,7 +95,6 @@ class ConfigManager:
                 "is_auto_entry": is_auto_entry
             }
         return index_data
-
 
     def set_config(self) -> None:
         """初始化配置信息"""
@@ -174,34 +173,16 @@ class ConfigManager:
         """
         return self.index_data.get("yzj_config", {}).get(yzj_token, {}).get("is_auto_entry", False)
 
-    def get_info_by_yzj_token(self, yzj_token: str) -> Tuple[str, str, str]:
-        """
-        从云之家群token获取语雀知识库id、分组title和assistant_id
-        :param yzj_token: 云之家群 token
-        :return: 语雀知识库id, 分组title, assistant_id
-        """
-        asst_id = self.get_assistant_id_by_yzj_token(yzj_token)
-        repo, toc_title = self.get_yq_info_by_asst_id(asst_id)
-        return repo, toc_title, asst_id
 
-    def get_yq_info_by_yzj_token(self, yzj_token: str) -> Tuple[str, str]:
+    def get_yq_info_by_yzj_token(self, yzj_token: str) -> List[Tuple[str, str]]:
         """
         从云之家群token获取语雀知识库id和分组id
         :param yzj_token: 云之家群 token
-        :return: 语雀知识库id, 分组title
+        :return: [(语雀知识库id, 分组title)]
         """
         asst_id = self.get_assistant_id_by_yzj_token(yzj_token)
-        repo, toc_title = self.get_yq_info_by_asst_id(asst_id)
-        return repo, toc_title
-    def get_all_yq_info(self) -> List[Tuple[str, str]]:
-        """
-        获取所有的语雀知识库id和分组title
-        :return: 列表のof (语雀知识库id, 分组title)
-        """
-        yq_info = set()
-        for _, asst_info in self.index_data.get("asst_config", {}).items():
-            yq_info.add((asst_info['repo'],asst_info['toc_title']))
-        return list(yq_info)
+        return self.get_yq_info_by_asst_id(asst_id)
+
 
     def get_all_yq_repo(self) -> List[str]:
         """
@@ -210,29 +191,19 @@ class ConfigManager:
         """
         repo_list = set()
         for _, asst_info in self.index_data.get("asst_config", {}).items():
-            repo_list.add(asst_info['repo'])
+            for yq_info in asst_info['yq_info']:
+                repo_list.add(yq_info[0])
         return list(repo_list)
 
-    def get_yq_info_by_asst_id(self, asst_id: str) -> Tuple[str, str]:
+    def get_yq_info_by_asst_id(self, asst_id: str) -> List[Tuple[str, str]]:
         """
         基于助手id获取语雀信息
         :param asst_id: 助手id
-        :return: 语雀知识库id, 分组title
+        :return: [(语雀知识库id, 分组title)]
         """
         asst_info = self.index_data.get("asst_config", {}).get(asst_id, {})
-        repo = asst_info.get("repo")
-        toc_title = asst_info.get("toc_title")
-        return repo, toc_title
+        return asst_info.get("yq_info", [])
 
-    def get_all_asst_info(self) -> List[Tuple[str, int, str]]:
-        """
-        获取所有的助手信息
-        :return: 列表 (助手id, 助手类型, LLM类型)
-        """
-        asst_info_list = []
-        for asst_id, asst_info in self.index_data.get("asst_config", {}).items():
-            asst_info_list.append((asst_id, asst_info["assistant_type"], asst_info["llm_type"]))
-        return asst_info_list
 
     def get_asst_info_by_asst_id(self, asst_id: str) -> Tuple[int, str]:
         """

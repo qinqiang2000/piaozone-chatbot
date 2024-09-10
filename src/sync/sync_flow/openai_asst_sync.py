@@ -21,27 +21,37 @@ class SyncFlow:
         self.writer = OpenAIAsstWriter()
         logger.info(f"语雀到 openai assistant 的同步流程初始化成功")
 
-    def sync_yq_doc_to_dest(self, repo: str, toc_title: str, assistant: BaseAssistant) -> bool:
+    def sync_yq_doc_to_dest(self, yq_info: list, assistant: BaseAssistant) -> bool:
         """
-        同步对应的知识库的所有文档到问答助手
-        :param repo: 知识库的唯一标识
-        :param toc_title: 目录title,对应知识库的专题库
+        同步对应的知识库的所有文档到问答助手(可能存在多个知识库)
+        :param yq_info: [(repo:知识库的唯一标识, toc_title: 目录title,对应知识库的专题库)]
         :param assistant: gpt assistant
         :return: bool :是否同步成功
         """
-        # 1. 获取语雀知识库文档
-        logger.info(f"[asst_id={assistant.assistant_id}]：开始获取语雀知识库'{toc_title}'文档...")
-        yq_docs = self.yqreader.get_docs_for_topic_title(repo, toc_title)
-        logger.info(f"[asst_id={assistant.assistant_id}]：获取语雀知识库'{toc_title}'文档成功，文档数量: {len(yq_docs)}")
-        if not yq_docs or not assistant.assistant_id:
-            logger.error(f"[asst_id={assistant.assistant_id}]：同步数据到gpt assistant失败,请检查助手以及当前语雀知识库'{toc_title}'是否正确配置")
+        if not assistant or not yq_info:
+            logger.error(
+                f"同步数据到gpt assistant失败,请检查助手以及当前语雀知识库信息'{yq_info}'是否正确配置")
             return False
+        # 1.清空缓存文件
+        self.transformer.empty_cache(assistant.assistant_id)
+        # 1. 获取语雀知识库文档
         try:
-            # 2. 转换文档
-            base_url = self.yqreader.get_access_base_url(repo)
-            asst_docs = self.transformer(yq_docs, assistant.assistant_id,base_url)
+            all_asst_docs = []
+            for repo, toc_title in yq_info:
+                logger.info(f"[asst_id={assistant.assistant_id}]：开始获取语雀知识库'{toc_title}'文档...")
+                yq_docs = self.yqreader.get_docs_for_topic_title(repo, toc_title)
+                if not yq_docs:
+                    logger.warning(f"[asst_id={assistant.assistant_id}]：语雀知识库'{toc_title}'未获取到文档")
+                else:
+                    logger.info(
+                        f"[asst_id={assistant.assistant_id}]：获取语雀知识库'{toc_title}'文档成功，文档数量: {len(yq_docs)}")
+                # 2. 转换文档
+                base_url = self.yqreader.get_access_base_url(repo)
+                # file_name_prefix = f"{repo}-{toc_title}"
+                asst_docs = self.transformer(yq_docs, assistant.assistant_id, base_url, toc_title)
+                all_asst_docs.extend(asst_docs)
             # 3. 写入文档
-            return self.writer(asst_docs, assistant)
+            return self.writer(all_asst_docs, assistant)
         except Exception as e:
             logger.error(f"[asst_id={assistant.assistant_id}]：同步数据到gpt assistant 失败：{e}.{traceback.format_exc()}")
             return False

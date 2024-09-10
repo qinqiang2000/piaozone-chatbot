@@ -51,7 +51,7 @@ class App(FastAPI):
 
         # 3. 初始化数据库
         self.database = SQLDatabase(**DB_CONFIG)
-        self.database.create_table(table_class=FAQ) #建表储存问答信息
+        # self.database.create_table(table_class=FAQ) #建表储存问答信息
 
 
         # 4. 初始化gpt assistants
@@ -68,11 +68,12 @@ class App(FastAPI):
 
         # 7、添加 api_route
         self.add_api_route("/yzj/chat", self.yzj_chat, methods=["POST"])
-        self.add_api_route("/zhichi/chat", self.zhihci_chat, methods=["POST"])
+        self.add_api_route("/zhichi/chat", self.zhichi_chat, methods=["POST"])
         # self.add_api_route("/yuque/webhook", self.yuque_sync_info_update, methods=["POST"])
         self.add_api_route("/sync", self.force_sync, methods=["POST"])
         self.add_api_route("/empty_file", self.empty_files, methods=["POST"])
         self.add_api_route("/del_session", self.del_session, methods=["POST"])
+        self.add_api_route("/get_thread", self.get_thread_id, methods=["GET"])
         self.add_api_route("/yuque/config_update", self.yuque_update_config, methods=["POST"])
         self.add_api_route("/update_config", self.force_update_config, methods=["POST"]) # 强制更新配置
         self.add_api_route("/get_config", self.get_config, methods=["GET"])
@@ -103,8 +104,14 @@ class App(FastAPI):
             logger.error(f"[asst_id={assistant_id}]: 助手id不存在")
             return None
         asst_type, llm_type = self.config_manager.get_asst_info_by_asst_id(assistant_id)
-        repo, toc_title = self.config_manager.get_yq_info_by_asst_id(assistant_id)
-        topic = repo + "_" + toc_title
+        yq_info = self.config_manager.get_yq_info_by_asst_id(assistant_id)
+        yq_info_dict = {}
+        for repo, toc_title in yq_info:
+            if repo not in yq_info_dict:
+                yq_info_dict[repo] = []
+            yq_info_dict[repo].append(toc_title)
+
+        topic = "_".join([f"{repo}_{'-'.join(toc_titles)}" for repo, toc_titles in yq_info_dict.items()])
         if asst_type not in asst_configs:
             logger.error(f"[asst_id={assistant_id}]: 不合法的助手类型: {asst_type}")
             return None
@@ -117,9 +124,10 @@ class App(FastAPI):
                                              topic=topic,
                                              database=self.database)
         if not assistant_ins.check_asst_file():
-            logger.info(f"[asst_id={assistant_id}]: 助手不存在文件，开始同步专题库 '{toc_title}' 的文件")
+
+            logger.info(f"[asst_id={assistant_id}]: 助手不存在文件，开始同步专题库 '{','.join([x[1] for x in yq_info])}' 的文件")
             sync_id = asst_config['sync_flow_config']['id']
-            ret = self.sync_manager.sync_dict[sync_id].sync_yq_doc_to_dest(repo, toc_title,
+            ret = self.sync_manager.sync_dict[sync_id].sync_yq_doc_to_dest(yq_info,
                                                                            assistant_ins)
             # 如果同步失败：
             if not ret:
@@ -198,7 +206,7 @@ class App(FastAPI):
             }
         }
         return JSONResponse(content=result, status_code=422)
-    async def zhihci_chat(self,msg: ZCRobotMsg) -> JSONResponse:
+    async def zhichi_chat(self,msg: ZCRobotMsg) -> JSONResponse:
         """
         智齿对话接口
         :param msg: 智齿机器人消息
@@ -251,18 +259,18 @@ class App(FastAPI):
     def sync_assistant(self, assistant_id: str):
         assistant = self.get_assistant(assistant_id)
         asst_type, _ = self.config_manager.get_asst_info_by_asst_id(assistant_id)
-        repo, toc_title = self.config_manager.get_yq_info_by_asst_id(assistant_id)
+        yq_info = self.config_manager.get_yq_info_by_asst_id(assistant_id)
         yzj_tokens = self.config_manager.get_yzj_token_by_asst_id(assistant_id)
         sync_id = ASSISTANT_CONFIG[asst_type]['sync_flow_config']['id']
-        logger.info(f"语雀知识库'{toc_title}' 需要同步至assistant: '{assistant_id}'")
+        logger.info(f"语雀知识库'{','.join([x[1] for x in yq_info])}' 需要同步至assistant: '{assistant_id}'")
         # 通知云之家需要开始同步
         for yzj_token in yzj_tokens:
             self.yzjhandler.notice_yzj_group(yzj_token=yzj_token, content="开始同步新文档至Assistant,如果有什么问题请同步结束后再提问。")
         # 同步知识库数据到assistant
-        ret = self.sync_manager.sync_dict[sync_id].sync_yq_doc_to_dest(repo, toc_title, assistant)
+        ret = self.sync_manager.sync_dict[sync_id].sync_yq_doc_to_dest(yq_info, assistant)
         success = "成功"
         if ret:
-            logger.info(f"同步知识库'{toc_title}'数据到 assistant成功: {assistant_id}")
+            logger.info(f"同步知识库'{','.join([x[1] for x in yq_info])}'数据到 assistant成功: {assistant_id}")
         else:
             success = "失败"
         # 通知云之家同步结束
@@ -295,8 +303,8 @@ class App(FastAPI):
         except Exception as e:
             logger.error(f"[asst_id={assistant_id}]：同步助手失败：{e}")
 
-    async def scheduler_tasks(self):
-        logger.info("开始执行定时任务")
+    async def scheduler_sync_tasks(self):
+        logger.info("开始执行定时同步任务")
         # 定时同步任务
         tasks = []
         semaphore = asyncio.Semaphore(10)   # 设置并发执行的任务数量
@@ -315,9 +323,9 @@ class App(FastAPI):
             asst = self.get_assistant(assistant_id)
             if asst is not None:
                 asst.del_all_threads()
-        logger.info("定时任务结束")
+        logger.info("定时同步任务结束")
 
-    async def update_to_yuque(self):
+    def auto_entry_faq(self):
         """
         将前一天的所有数据更新到语雀文档中
         :return:
@@ -391,16 +399,21 @@ class App(FastAPI):
         except requests.exceptions.RequestException as e:
             logger.error(f"数据更新失败：{e}")
 
+    async def scheduler_auto_entry_tasks(self):
+        logger.info("开始执行定时录入任务")
+        await asyncio.get_event_loop().run_in_executor(executor, self.auto_entry_faq)
+        logger.info("定时录入任务结束")
+
 
     async def startup_tasks(self):
         """
         初始化定时任务
         """
         self.scheduler = AsyncIOScheduler()
-        self.scheduler.add_job(self.scheduler_tasks, 'cron', day_of_week='sat', hour=2)
-        self.scheduler.add_job(self.update_to_yuque, 'cron', day_of_week='*', hour=1)
+        self.scheduler.add_job(self.scheduler_sync_tasks, 'cron', day_of_week='sat', hour=2)
+        self.scheduler.add_job(self.scheduler_auto_entry_tasks, 'cron', day_of_week='*', hour=1)
         self.scheduler.start()
-        logger.info("设置定时同步任务成功")
+        logger.info("设置定时任务成功")
     async def shutdown_tasks(self):
         """
         在结束时同步并关闭定时器
@@ -491,6 +504,15 @@ class App(FastAPI):
         except Exception as e:
             result = {"success": False, "description": str(e)}
             logger.error(f"删除thread失败：{e}.{traceback.format_exc()}")
+        return JSONResponse(content=result)
+    def get_thread_id(self, assistant_id: str = Query(...), session_id: str = Query(...)):
+        try:
+            assistant = self.get_assistant(assistant_id)
+            result = {"success": True, "description": "操作成功",
+                      "data": assistant.get_thread_id(session_id)}
+        except Exception as e:
+            result = {"success": False, "description": str(e)}
+            logger.error(f"获取助手thread id失败：{e}.{traceback.format_exc()}")
         return JSONResponse(content=result)
 
 

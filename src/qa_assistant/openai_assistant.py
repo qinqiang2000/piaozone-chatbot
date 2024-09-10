@@ -366,18 +366,33 @@ class Assistant(BaseAssistant):
                 'url': file_url
             } for file_url, file_ins in results]
             self.database.batch_insert_data(self.table_class, data_list)
-
             # 将files 添加到vector store
-            file_batch = self.client.beta.vector_stores.file_batches.create_and_poll(
-                vector_store_id=vector_store_id,
-                file_ids=[f.id for _, f in results]
-                # chunking_strategy=chunking_strategy
-            )
-            if file_batch.status == "completed":
-                logger.info(f"[asst_id={self.assistant_id}]：上传文件成功：{file_batch.file_counts}")
-                return True
-            logger.error(f"[asst_id={self.assistant_id}]：上传文件状态{file_batch.status}：{file_batch.file_counts}")
-            return False
+            batch_size = 500
+            file_ids = [f.id for _, f in results]
+            total_files = len(file_ids)
+            successful_files = 0
+
+            for i in range(0, total_files, batch_size):
+                batch = file_ids[i:i + batch_size]
+                file_batch = self.client.beta.vector_stores.file_batches.create_and_poll(
+                    vector_store_id=vector_store_id,
+                    file_ids=batch
+                    # chunking_strategy=chunking_strategy
+                )
+                if file_batch.status == "completed":
+                    successful_files += file_batch.file_counts.completed
+                    logger.info(
+                        f"[asst_id={self.assistant_id}]：成功上传第 {i // batch_size + 1} 批文件：{file_batch.file_counts}")
+                else:
+                    logger.error(
+                        f"[asst_id={self.assistant_id}]：第 {i // batch_size + 1} 批文件上传失败，文件上传终止，状态{file_batch.status}：{file_batch.file_counts}")
+                    return False
+
+            logger.info(f"[asst_id={self.assistant_id}]：所有文件处理完成。最终成功上传{successful_files}/{total_files}")
+            if successful_files != total_files:
+                # 当前这个错误暂时无法处理，暂时算作上传成功
+                logger.error(f"[asst_id={self.assistant_id}]：{total_files-successful_files}个文件上传失败，请重新同步")
+            return True
         finally:
             # 确保所有文件都被关闭
             for _, file_stream in file_streams:

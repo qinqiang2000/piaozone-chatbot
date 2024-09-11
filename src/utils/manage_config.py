@@ -32,7 +32,7 @@ class ConfigManager:
         if len(sheet_data) >= 1:
             df = pd.DataFrame(sheet_data[1:], columns=sheet_data[0])
         else:
-            logger.info("配置文档不存在数据，请检查")
+            logger.warning("配置文档不存在数据，请检查")
             return pd.DataFrame()
         # 删除无用列
         del df['id']
@@ -149,7 +149,6 @@ class ConfigManager:
         获取配置文档（语雀上的）
         :return: 配置文档详情
         """
-        logger.info(f"请求获取配置文档 {config_url}")
         try:
             response = requests.get(url=config_url, headers=self.config_headers)
             response.raise_for_status()

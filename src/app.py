@@ -5,6 +5,7 @@ import asyncio
 import os
 from typing import Any,Optional
 import sys
+import json
 import importlib
 import traceback
 from pydantic import BaseModel,ValidationError
@@ -61,6 +62,7 @@ class App(FastAPI):
         self.yzjhandler = YZJHandler(yunzhijia_config=YUNZHIJIA_CONFIG,
                                      config_manager=self.config_manager)
         self.zhichihandler = ZhiChiHandler(config_manager=self.config_manager)
+
 
         # 6、添加定时任务,每周6 2点触发定时同步任务，每天1点触发定时自动录入任务
         self.add_event_handler("startup", self.startup_tasks)
@@ -181,37 +183,49 @@ class App(FastAPI):
                 "data": {"type": 2, "content": "抱歉，目前存在问题，请稍后再试"}
             }
         return JSONResponse(content=result)
-
-    async def validation_exception_handler(self, request: Request, exc: RequestValidationError):
-        """处理请求验证错误"""
-        # 尝试获取原始请求体
-        try:
-            body = await request.json()
-        except:
-            body = {}
-
-        # 尝试从请求体中获取 cid 和 msgid
-        cid = body.get('cid', '')
-        msgid = body.get('msgid', '')
-
-        result = {
-            "ret_code": "000003",
-            "ret_msg": "输入验证错误",
-            "item": {
-                "cid": cid,
-                "msgid": msgid,
-                "answer_txt": str(exc),
-                "answer_txt_type": "0",
-                "answer_type": "3"
-            }
-        }
-        return JSONResponse(content=result, status_code=422)
-    async def zhichi_chat(self,msg: ZCRobotMsg) -> JSONResponse:
+    async def zhichi_chat(self,request: Request) -> JSONResponse:
         """
         智齿对话接口
         :param msg: 智齿机器人消息
         :return: JSON响应
         """
+        #输入处理
+        try:
+            body = await request.json()
+            msg = ZCRobotMsg(**body)
+        except json.JSONDecodeError as json_e:
+            logger.error(f"输入JSON解码错误: {json_e}")
+            result = {
+                "ret_code": "000003",
+                "ret_msg": "输入JSON解析失败",
+                "item": {
+                    "cid": "",
+                    "msgid": "",
+                    "answer_txt": "JSON格式无效，请检查输入。",
+                    "answer_txt_type": "0",
+                    "answer_type": "3"
+                }
+            }
+            return JSONResponse(content=result, status_code=422)
+        except ValidationError as valid_e:
+            errors = valid_e.errors()
+            logger.error(f"智齿输入验证错误: {valid_e.errors()}")
+            if len(errors) == 0:
+                err_msg = str(valid_e)
+            else:
+                err_msg = f"{errors[0]['loc']} {errors[0]['type']}. {errors[0]['msg']}"
+            result = {
+                "ret_code": "000003",
+                "ret_msg": "输入验证错误",
+                "item": {
+                    "cid": body.get('cid', ''),
+                    "msgid": body.get('msgid', ''),
+                    "answer_txt": err_msg,
+                    "answer_txt_type": "0",
+                    "answer_type": "3"
+                }
+            }
+            return JSONResponse(content=result, status_code=422)
         try:
             logger.info(f"[zhichi_session_id={msg.cid}]输入消息: {msg}")
             # 、获取assistant，智齿只需要配置一个assistant，所以直接取第一个即可
@@ -343,7 +357,7 @@ class App(FastAPI):
             existing_data = response.json()['data']
             existing_body = existing_data['body']
             format_body = existing_body.replace('<br />', '<br>').replace('\n', '<br>') #修改单元格内换行符
-            existing_content = format_body.replace('|<br><br>', '|\n').replace('|<br>', '|\n') #替换表格结尾
+            existing_content = format_body.replace('|<br>', '|\n').rstrip('<br>') #替换表格结尾
             update_time = existing_data.get('updated_at')
             logger.info(f"获取url现有数据成功，上次更新时间{update_time}")
             #logger.info(f"url现有数据：{existing_content}")

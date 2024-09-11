@@ -78,7 +78,6 @@ class YQReader:
         for toc in toc_list:
             if toc["doc_id"] == doc_id:
                 doc_uuid = toc["uuid"]
-                print(f"doc_title:{toc['title']}")
             if toc["parent_uuid"] != "":
                 nodes_tree[toc["uuid"]] = toc["parent_uuid"]
             else:
@@ -169,8 +168,6 @@ class YQReader:
             "X-Auth-Token": self.YUQUE_AUTH_TOKEN,
             "User-Agent": self.YUQUE_REQUEST_AGENT
         }
-
-        logger.info(f"请求获取语雀目录 {url}")
         try:
             response = requests.get(url=url, headers=headers)
             response.raise_for_status()

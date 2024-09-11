@@ -17,7 +17,7 @@ class ZCRobotMsg(BaseModel):
     msgid: str
     query_txt: str
     partnerid: str
-    multi_params: Optional[Dict[str, Any]] = None
+    multi_params: Optional[Any] = None
 
 
 

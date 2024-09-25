@@ -25,7 +25,7 @@ from src.sync.sync_flow_manger import SyncManager
 from src.handlers.yunzhijia_handler import YZJHandler, YZJRobotMsg
 from src.handlers.zhichi_handler import ZhiChiHandler, ZCRobotMsg
 from src.qa_assistant.base_assistant import ASSTType
-from src.utils.database import SQLDatabase, FAQ
+from src.utils.database import SQLDatabase, QARecord
 import datetime
 from sqlalchemy import and_
 import requests
@@ -52,7 +52,7 @@ class App(FastAPI):
 
         # 3. 初始化数据库
         self.database = SQLDatabase(**DB_CONFIG)
-        # self.database.create_table(table_class=FAQ) #建表储存问答信息
+        self.database.create_table(table_class=QARecord) #建表储存问答信息
 
 
         # 4. 初始化gpt assistants
@@ -60,8 +60,9 @@ class App(FastAPI):
 
         # 5. 初始化云之家处理器和智齿处理器
         self.yzjhandler = YZJHandler(yunzhijia_config=YUNZHIJIA_CONFIG,
+                                     auto_entry_config=AUTO_ENTRY_CONFIG,
                                      config_manager=self.config_manager)
-        self.zhichihandler = ZhiChiHandler(config_manager=self.config_manager)
+        self.zhichihandler = ZhiChiHandler(config_manager=self.config_manager, database=self.database)
 
 
         # 6、添加定时任务,每周6 2点触发定时同步任务，每天1点触发定时自动录入任务
@@ -80,6 +81,10 @@ class App(FastAPI):
         self.add_api_route("/update_config", self.force_update_config, methods=["POST"]) # 强制更新配置
         self.add_api_route("/get_config", self.get_config, methods=["GET"])
 
+        # 8. 添加 QA 查询页面
+        self.add_api_route("/zhichi/qa", self.zhichihandler.qa_query_page, methods=["GET"])
+        self.add_api_route("/zhichi/qa/query", self.zhichihandler.query_qa, methods=["GET"])
+        self.add_api_route("/zhichi/qa/export", self.zhichihandler.export_qa, methods=["GET"])
 
     def init_asst(self) -> None:
         """初始化assistants"""
@@ -339,83 +344,9 @@ class App(FastAPI):
                 asst.del_all_threads()
         logger.info("定时同步任务结束")
 
-    def auto_entry_faq(self):
-        """
-        将前一天的所有数据更新到语雀文档中
-        :return:
-        """
-        # 需要更新的url和表头
-        yuque_url = f"{YUQUE_CONFIG['yuque_base_url']}/repos/{YUQUE_CONFIG['yuque_namespace']}/{AUTO_ENTRY_CONFIG['repo']}/docs/{AUTO_ENTRY_CONFIG['slug']}"
-        yuque_headers = {
-            "X-Auth-Token": YUQUE_CONFIG["yuque_auth_token"],
-            "User-Agent": YUQUE_CONFIG["yuque_request_agent"]
-                    }
-        # 获取url现有数据
-        try:
-            response = requests.get(yuque_url, headers=yuque_headers)
-            response.raise_for_status()
-            existing_data = response.json()['data']
-            existing_body = existing_data['body']
-            format_body = existing_body.replace('<br />', '<br>').replace('\n', '<br>') #修改单元格内换行符
-            existing_content = format_body.replace('|<br>', '|\n').rstrip('<br>') #替换表格结尾
-            update_time = existing_data.get('updated_at')
-            logger.info(f"获取url现有数据成功，上次更新时间{update_time}")
-            #logger.info(f"url现有数据：{existing_content}")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"获取现有数据失败：{e}")
-
-        # 从数据库获取前一天0点到今天0点的数据
-        table_class = FAQ
-        now = datetime.datetime.now()
-        yesterday = datetime.datetime.combine(now.date() - datetime.timedelta(days=1), datetime.time(0, 0))
-        today = datetime.datetime.combine(now.date(), datetime.time(0, 0))
-        filter_cond = and_(table_class.entry_time >= yesterday, table_class.entry_time <= today)
-        extract_data = self.database.complex_query_data(table_class, filter_cond)
-        # 列表储存得到的数据
-        results = []
-        for result in extract_data:
-            res = {'id': result.id, 'topic_name': result.topic_name, 'question': result.question,
-                   'answer': result.answer, 'has_answer': result.has_answer, 'asker': result.asker,
-                   'entry_time': result.entry_time}
-            results.append(res)
-        logger.info(f"成功从数据库获取记录")
-
-        #设定表头和新加的数据格式
-        header = '| 序号 | 产品线 | 问题来源编号 | 问题模块 | 问题等级 | 问题描述 | GPT参考答案 | 知识库是否存在答案 | 最终回复答案 | 提问人 | 解答人 | 录入时间 |\n '
-        header += '|---|---|---|---|---|---|---|---|---|---|---|---|\n'
-        new_content = ''
-        for item in results:
-            #统一格式，替换换行符
-            f_topic_name = item['topic_name'].replace('\n', '<br>')
-            f_question = item['question'].replace('\n', '<br>')
-            f_answer = item['answer'].replace('\n', '<br>')
-            f_asker = item['asker'].replace('\n', '<br>')
-            row = f"| {item['id']} | {f_topic_name} |   |   |   | {f_question} | {f_answer} | {item['has_answer']} |   | {f_asker} |   | {item['entry_time']} |\n"
-            new_content += row
-        # 如果现有body不为空，加上新的数据，否则设定表头内容
-        if existing_content.strip():
-            update_content_body = existing_content + new_content
-        else:
-            update_content_body = header + new_content
-
-        #更新的内容
-        update_content = {
-            'title': 'FAQ信息',
-            'format': 'markdown',
-            'body': update_content_body,
-            'public': 2
-        }
-        # 发送 PUT 请求更新数据
-        try:
-            response = requests.put(yuque_url, headers=yuque_headers, json=update_content)
-            response.raise_for_status()
-            logger.info("数据更新成功")
-        except requests.exceptions.RequestException as e:
-            logger.error(f"数据更新失败：{e}")
-
     async def scheduler_auto_entry_tasks(self):
         logger.info("开始执行定时录入任务")
-        await asyncio.get_event_loop().run_in_executor(executor, self.auto_entry_faq)
+        await asyncio.get_event_loop().run_in_executor(executor, self.yzjhandler.auto_entry_qa)
         logger.info("定时录入任务结束")
 
 
@@ -425,7 +356,7 @@ class App(FastAPI):
         """
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_sync_tasks, 'cron', day_of_week='sat', hour=2)
-        self.scheduler.add_job(self.scheduler_auto_entry_tasks, 'cron', day_of_week='*', hour=1)
+        self.scheduler.add_job(self.scheduler_auto_entry_tasks, 'cron', day_of_week='*', hour=2)
         self.scheduler.start()
         logger.info("设置定时任务成功")
     async def shutdown_tasks(self):

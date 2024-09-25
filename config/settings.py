@@ -73,8 +73,11 @@ YUNZHIJIA_CONFIG = {
 }
 ################## 自动录入地址配置 ##################
 AUTO_ENTRY_CONFIG = {
-    "repo": "kro38t",
-    "slug": "wthbafwdgo5zw783"
+    "url": f"{YUQUE_CONFIG['yuque_base_url']}/repos/{YUQUE_CONFIG['yuque_namespace']}/kro38t/docs/wthbafwdgo5zw783",
+    "headers": {
+        "X-Auth-Token": YUQUE_CONFIG["yuque_auth_token"],
+        "User-Agent": YUQUE_CONFIG["yuque_request_agent"]
+    }
 }
 
 ################## 日志 ##################

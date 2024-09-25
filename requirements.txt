@@ -3,7 +3,6 @@ celery
 openpyxl
 numpy
 tiktoken
-unstructured
 uvicorn
 jinja2
 fastapi

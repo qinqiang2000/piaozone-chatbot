@@ -8,7 +8,7 @@ from openai.types.beta.threads import Run
 from src.qa_assistant.base_assistant import BaseAssistant, ASSTType
 from src.utils.logger import logger
 from src.utils.data_process import process_topic_name
-from src.utils.database import SQLDatabase, FileAndUrlTable, FAQ
+from src.utils.database import SQLDatabase, FileAndUrlTable, QARecord
 
 # Assistant类，用于处理openai的对话请求
 class Assistant(BaseAssistant):
@@ -110,7 +110,8 @@ class Assistant(BaseAssistant):
                 message_content = self.process_annotation(message_content)
             # 判断是否包含答案
             has_answer_key = ["上述问题无法在标准知识库中找到答案", "在标准知识库中未能找到明确答案",
-                              "上述问题无法在标凈知识库找到答案", "上述问题无法在标净知识库找到答案"]
+                              "上述问题无法在标凈知识库找到答案", "上述问题无法在标净知识库找到答案",
+                              "无法在标准知识库中找到更具体的答案"]
             has_answer = not any(phrase in message_content.value for phrase in has_answer_key)
 
             return message_content.value, has_answer
@@ -398,12 +399,12 @@ class Assistant(BaseAssistant):
             for _, file_stream in file_streams:
                 file_stream.close()
 
-    def save_faq_to_database(self, topic_name: str = "", question: str = "", answer: str = "",
-                             has_answer: bool = False, asker: str = "") -> None:
+    def save_qa_to_database(self, session_id: str = "", msg_id: str = "", topic_name: str = "", question: str = "",
+                             answer: str = "", has_answer: bool = False, asker: str = "", source: int = 0) -> None:
         has_answer = '是' if has_answer else '否'
-        upload_data = {'topic_name': topic_name, 'question': question, 'answer': answer, 'has_answer': has_answer,
-                       'asker': asker}
-        self.database.insert_data(FAQ, upload_data)
+        upload_data = {'session_id': session_id, 'msg_id': msg_id, 'topic_name': topic_name, 'question': question,
+                       'answer': answer, 'has_answer': has_answer, 'asker': asker, 'source': source}
+        self.database.insert_data(QARecord, upload_data)
         logger.info(f"[asst_id={self.assistant_id}]：问答数据录入成功")
 
 

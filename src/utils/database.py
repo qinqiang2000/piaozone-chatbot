@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, func, DateTime, Text
+from sqlalchemy import create_engine, Column, Integer, String, func, DateTime, Text, Index
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
@@ -15,16 +15,32 @@ class FileAndUrlTable(Base):
     file_id = Column(String(255), nullable=False)
     url = Column(String(255), nullable=False)
 
-class FAQ(Base):
+# class FAQ(Base):
+#     """储存机器人问答信息"""
+#     __tablename__ = 'FQA_record'
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     topic_name = Column(Text, nullable=False)
+#     question = Column(LONGTEXT, nullable=False)
+#     answer = Column(LONGTEXT, nullable=False)
+#     has_answer = Column(Text, nullable=False)
+#     asker = Column(Text, nullable=False)
+#     entry_time = Column(DateTime, default=datetime.datetime.now)
+
+class QARecord(Base):
     """储存机器人问答信息"""
-    __tablename__ = 'FQA_record'
+    __tablename__ = 't_qa_record'
     id = Column(Integer, primary_key=True, autoincrement=True)
-    topic_name = Column(Text, nullable=False)
-    question = Column(LONGTEXT, nullable=False)
-    answer = Column(LONGTEXT, nullable=False)
-    has_answer = Column(Text, nullable=False)
-    asker = Column(Text, nullable=False)
-    entry_time = Column(DateTime, default=datetime.datetime.now)
+    session_id = Column(String(255))
+    msg_id = Column(String(255))
+    topic_name = Column(String(500))
+    question = Column(Text)
+    answer = Column(Text)
+    has_answer = Column(String(255))
+    asker = Column(String(255))
+    source = Column(Integer, default=0) #用于区分问答来源 yunzhijia-0 or zhichi-1 or other-2
+    created_at = Column(DateTime, default=func.now())
+    __table_args__ = (Index('ix_source_created_at', 'source', 'created_at'),)
+
 
 class SQLDatabase:
     """使用 SQLAlchemy 存储信息"""
@@ -32,7 +48,7 @@ class SQLDatabase:
     def __init__(self,user='root', password='12345', host='localhost', port=3306, db="kb",charset="utf8"):
         connection_url = f"mysql+mysqlconnector://{user}:{password}@{host}:{port}/{db}?charset={charset}"
         self.engine = create_engine(connection_url, pool_size=10, max_overflow=20, pool_timeout=30, pool_recycle=1800, echo=False)
-        self.Session = sessionmaker(autoflush=False, bind=self.engine)
+        self.Session = sessionmaker(autocommit=False,autoflush=False, bind=self.engine)
         logger.debug("连接到 MySQL 服务器")
 
     def create_table(self, table_class):

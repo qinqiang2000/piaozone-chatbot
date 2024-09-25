@@ -30,7 +30,7 @@ class ZCRobotMsg(BaseModel):
 
 class ZhiChiHandler:
     HANDLER_TYPE = "zhichi"
-    templates = Jinja2Templates(directory="templates")
+    templates = Jinja2Templates(directory="src/templates")
     def __init__(self, config_manager,database):
         self.config_manager = config_manager
         self.database = database

@@ -14,6 +14,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from concurrent.futures import ThreadPoolExecutor
 from fastapi import FastAPI, Request, Query
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTasks
 from celery.result import AsyncResult
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -85,6 +86,8 @@ class App(FastAPI):
         self.add_api_route("/zhichi/qa", self.zhichihandler.qa_query_page, methods=["GET"])
         self.add_api_route("/zhichi/qa/query", self.zhichihandler.query_qa, methods=["GET"])
         self.add_api_route("/zhichi/qa/export", self.zhichihandler.export_qa, methods=["GET"])
+
+        self.mount("/zhichi/static", StaticFiles(directory="src/static"), name="static")
 
     def init_asst(self) -> None:
         """初始化assistants"""

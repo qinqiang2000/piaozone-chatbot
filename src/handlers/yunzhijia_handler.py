@@ -10,6 +10,7 @@ from typing import Optional
 import requests
 import datetime
 from pydantic import BaseModel
+from sqlalchemy import and_
 from src.utils.logger import logger
 from src.utils.constants import QSource
 from src.utils.database import QARecord

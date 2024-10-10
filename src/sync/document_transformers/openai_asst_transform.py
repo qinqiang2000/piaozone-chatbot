@@ -62,12 +62,12 @@ class OpenAIAsstTransformer:
                 if (doc["format"] == "markdown" or doc["format"] == "lake") \
                         and "faq" in doc["title"].lower() and doc["body"]:
                     faq_docs.append(doc)
-                elif doc["format"] == "lake" and doc["body"]:
+                elif doc["format"] == "lake" and "body" in doc and doc["body"]:
                     docs.append(doc)
-                elif doc["format"] == "lakesheet" and doc["body_sheet"]:
+                elif doc["format"] == "lakesheet" and "body_sheet" in doc and doc["body_sheet"]:
                     table_docs.append(doc)
             except Exception as e:
-                raise Exception(f"文档 '{doc['slug']}'解析失败：{e}: {traceback.format_exc()}")
+                logger.error(f"文档 '{doc['slug']}'解析失败：{e}: {traceback.format_exc()}")
         return docs, table_docs, faq_docs
     def limit_doc_token(self, docs: dict, max_tokens_per_file: int):
         """

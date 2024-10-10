@@ -34,12 +34,13 @@ class YZJRobotMsg(BaseModel):
 
 class YZJHandler:
     HANDLER_TYPE = "yunzhijia"
-    def __init__(self, yunzhijia_config, auto_entry_config, config_manager):
+    def __init__(self, yunzhijia_config, auto_entry_config, config_manager,database):
         self.yunzhijia_notify_url = yunzhijia_config["notify_url"]
         self.max_img_num_in_card_notice = yunzhijia_config["max_img_num_in_card_notice"]
         self.card_notice_template_id = yunzhijia_config["card_notice_template_id"]
         self.auto_entry_config = auto_entry_config
         self.config_manager = config_manager
+        self.database = database
         logger.info(f"云之家处理器的初始化成功")
 
     def process_message(self, yzj_message: YZJRobotMsg):

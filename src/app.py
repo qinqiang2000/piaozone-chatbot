@@ -62,7 +62,8 @@ class App(FastAPI):
         # 5. 初始化云之家处理器和智齿处理器
         self.yzjhandler = YZJHandler(yunzhijia_config=YUNZHIJIA_CONFIG,
                                      auto_entry_config=AUTO_ENTRY_CONFIG,
-                                     config_manager=self.config_manager)
+                                     config_manager=self.config_manager,
+                                     database=self.database)
         self.zhichihandler = ZhiChiHandler(config_manager=self.config_manager, database=self.database)
 
 

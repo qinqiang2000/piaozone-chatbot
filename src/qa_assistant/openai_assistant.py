@@ -69,19 +69,19 @@ class Assistant(BaseAssistant):
         :param content:
         :return:
         """
-        #第一次调用时，需要检查同步文件是否完成
-        if not self.thread_map:
-            vector_store_ids = self.get_vector_store_ids()
-            if not vector_store_ids:
-                logger.error(f"[asst_id={self.assistant_id}]:助手没有关联的向量库")
-                return "当前助手还未关联向量库，请稍后再试"
-            vector_store_id = vector_store_ids[0]
-            vector_store_files = self.client.beta.vector_stores.files.list(vector_store_id)
-            if not vector_store_files.data:
-                return "当前助手还未同步文件，请稍后再试"
-            for file in vector_store_files.data:
-                if file.status == "in_progress":
-                    return "同步文件仍在处理中，请稍后再试"
+        #检查同步文件是否完成
+        # if not self.thread_map:
+        vector_store_ids = self.get_vector_store_ids()
+        if not vector_store_ids:
+            logger.error(f"[asst_id={self.assistant_id}]:助手没有关联的向量库")
+            return "助手还未关联向量库，请稍后再试", False
+        vector_store_id = vector_store_ids[0]
+        vector_store_files = self.client.beta.vector_stores.files.list(vector_store_id)
+        if not vector_store_files.data:
+            return "助手还未同步文件，请稍后再试", False
+        for file in vector_store_files.data:
+            if file.status == "in_progress":
+                return "同步文件仍在处理中，请稍后再试", False
 
         # 如果session_id不存在，创建一个新的thread;
         if session_id not in self.thread_map:

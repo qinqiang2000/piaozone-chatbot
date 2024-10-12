@@ -365,7 +365,7 @@ class Assistant(BaseAssistant):
             } for file_url, file_ins in results]
             self.database.batch_insert_data(self.table_class, data_list)
             # 将files 添加到vector store
-            batch_size = 500
+            batch_size = 100
             file_ids = [f.id for _, f in results]
             total_files = len(file_ids)
             successful_files = 0

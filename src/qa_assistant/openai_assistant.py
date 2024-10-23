@@ -71,14 +71,14 @@ class Assistant(BaseAssistant):
         """
         #检查同步文件是否完成
         # if not self.thread_map:
-        #     vector_store_ids = self.get_vector_store_ids()
-        #     if not vector_store_ids:
-        #         logger.error(f"[asst_id={self.assistant_id}]:助手没有关联的向量库")
-        #         return "助手还未关联向量库，请稍后再试", False
-        #     vector_store_id = vector_store_ids[0]
-        #     vector_store_files = self.client.beta.vector_stores.files.list(vector_store_id, filter="in_progress")
-        #     if vector_store_files.data:
-        #         return "同步文件仍在处理中，请稍后再试", False
+        vector_store_ids = self.get_vector_store_ids()
+        if not vector_store_ids:
+            logger.error(f"[asst_id={self.assistant_id}]:助手没有关联的向量库")
+            return "助手还未关联向量库，请稍后再试", False
+        vector_store_id = vector_store_ids[0]
+        vector_store_files = self.client.beta.vector_stores.files.list(vector_store_id, filter="in_progress")
+        if vector_store_files.data:
+            return "同步文件仍在处理中，请稍后再试", False
 
         # 如果session_id不存在，创建一个新的thread;
         if session_id not in self.thread_map:
@@ -331,70 +331,65 @@ class Assistant(BaseAssistant):
             )
         return self.upload_file(file_paths_and_urls,vector_store_ids[0])
 
-    def upload_file(self,file_paths_and_urls: list, vector_store_id: str) -> bool:
-        file_streams = []
+    def _upload_single_file(self, path):
+        with open(path, "rb") as file:
+            return self.client.files.create(file=file, purpose="assistants")
+
+    def upload_file(self, file_paths_and_urls: list, vector_store_id: str) -> bool:
         results = []
-        try:
-            for url, path in file_paths_and_urls:
-                file_streams.append((url, open(path, "rb")))
-            logger.debug(f"[asst_id={self.assistant_id}]：上传{len(file_paths_and_urls)}个文件到向量库 '{vector_store_id}'")
-            # 上传 files
-            max_concurrency = 5
-            with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
-                futures = {
-                    executor.submit(
-                        self.client.files.create,
-                        file=file,
-                        purpose="assistants",
-                    ): url
-                    for url, file in file_streams
-                }
+        logger.debug(f"[asst_id={self.assistant_id}]：上传{len(file_paths_and_urls)}个文件到向量库 '{vector_store_id}'")
+        # 上传 files
+        max_concurrency = 5
+        with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
+            futures = {
+                executor.submit(
+                    self._upload_single_file,
+                    path=path,
+                ): url
+                for url, path in file_paths_and_urls
+            }
 
-            for future in as_completed(futures):
-                url = futures[future]
-                exc = future.exception()
-                if exc:
-                    raise exc
+        for future in as_completed(futures):
+            url = futures[future]
+            exc = future.exception()
+            if exc:
+                raise exc
 
-                results.append((url, future.result()))
-            # 将 file_id 和url的对应关系储存在数据库中
-            data_list = [{
-                'assistant_id': self.assistant_id,
-                'file_id': file_ins.id,
-                'url': file_url
-            } for file_url, file_ins in results]
-            self.database.batch_insert_data(self.table_class, data_list)
-            # 将files 添加到vector store
-            batch_size = 100
-            file_ids = [f.id for _, f in results]
-            total_files = len(file_ids)
-            successful_files = 0
+            results.append((url, future.result()))
+        # 将 file_id 和url的对应关系储存在数据库中
+        data_list = [{
+            'assistant_id': self.assistant_id,
+            'file_id': file_ins.id,
+            'url': file_url
+        } for file_url, file_ins in results]
+        self.database.batch_insert_data(self.table_class, data_list)
+        # 将files 添加到vector store
+        batch_size = 100
+        file_ids = [f.id for _, f in results]
+        total_files = len(file_ids)
+        successful_files = 0
 
-            for i in range(0, total_files, batch_size):
-                batch = file_ids[i:i + batch_size]
-                file_batch = self.client.beta.vector_stores.file_batches.create_and_poll(
-                    vector_store_id=vector_store_id,
-                    file_ids=batch
-                    # chunking_strategy=chunking_strategy
-                )
-                if file_batch.status == "completed":
-                    successful_files += file_batch.file_counts.completed
-                    logger.info(
-                        f"[asst_id={self.assistant_id}]：成功上传第 {i // batch_size + 1} 批文件：{file_batch.file_counts}")
-                else:
-                    logger.error(
-                        f"[asst_id={self.assistant_id}]：第 {i // batch_size + 1} 批文件上传失败，文件上传终止，状态{file_batch.status}：{file_batch.file_counts}")
-                    return False
+        for i in range(0, total_files, batch_size):
+            batch = file_ids[i:i + batch_size]
+            file_batch = self.client.beta.vector_stores.file_batches.create_and_poll(
+                vector_store_id=vector_store_id,
+                file_ids=batch
+                # chunking_strategy=chunking_strategy
+            )
+            if file_batch.status == "completed":
+                successful_files += file_batch.file_counts.completed
+                logger.info(
+                    f"[asst_id={self.assistant_id}]：成功上传第 {i // batch_size + 1} 批文件：{file_batch.file_counts}")
+            else:
+                logger.error(
+                    f"[asst_id={self.assistant_id}]：第 {i // batch_size + 1} 批文件上传失败，文件上传终止，状态{file_batch.status}：{file_batch.file_counts}")
+                return False
 
-            logger.info(f"[asst_id={self.assistant_id}]：所有文件处理完成。最终成功上传{successful_files}/{total_files}")
-            if successful_files != total_files:
-                # 当前这个错误暂时无法处理，暂时算作上传成功
-                logger.error(f"[asst_id={self.assistant_id}]：{total_files-successful_files}个文件上传失败，请重新同步")
-            return True
-        finally:
-            # 确保所有文件都被关闭
-            for _, file_stream in file_streams:
-                file_stream.close()
+        logger.info(f"[asst_id={self.assistant_id}]：所有文件处理完成。最终成功上传{successful_files}/{total_files}")
+        if successful_files != total_files:
+            logger.error(f"[asst_id={self.assistant_id}]：{total_files-successful_files}个文件上传失败，请重新同步")
+            return False
+        return True
 
     def save_qa_to_database(self, session_id: str = "", msg_id: str = "", topic_name: str = "", question: str = "",
                              answer: str = "", has_answer: bool = False, asker: str = "", source: int = 0) -> None:

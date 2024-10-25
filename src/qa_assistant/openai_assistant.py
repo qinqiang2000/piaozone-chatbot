@@ -69,7 +69,7 @@ class Assistant(BaseAssistant):
         :param content:
         :return:
         """
-        #检查同步文件是否完成
+        #1. 检查同步文件是否完成
         # if not self.thread_map:
         vector_store_ids = self.get_vector_store_ids()
         if not vector_store_ids:
@@ -79,21 +79,30 @@ class Assistant(BaseAssistant):
         vector_store_files = self.client.beta.vector_stores.files.list(vector_store_id, filter="in_progress")
         if vector_store_files.data:
             return "同步文件仍在处理中，请稍后再试", False
+        #“您的上一个问题正在处理中，这条消息暂时无法接收。请稍后再重新发送您的问题。”
 
-        # 如果session_id不存在，创建一个新的thread;
+        # 2. 如果session_id不存在，创建一个新的thread;
         if session_id not in self.thread_map:
             thread = self.client.beta.threads.create()
             self.thread_map[session_id] = thread.id
-        # 1. 获取thread_id
+        # 3. 获取thread_id
         thread_id = self.thread_map.get(session_id)
 
-        # 2.构造openai的message
+        # 4. 检查是否有未处理完的run
+        runs_list = self.client.beta.threads.runs.list(thread_id=thread_id, limit=1).data
+        if runs_list:
+            run = runs_list[0]
+            if run.status in ["in_progress", "requires_action"]:
+                return "您的上一个问题正在处理中，这条消息暂时无法接收。请稍后再重新发送您的问题。", False
+
+
+        # 5.构造openai的message
         self.client.beta.threads.messages.create(
             thread_id=thread_id,
             role="user",
             content=content
         )
-        # 3.运行assistant
+        # 6.运行assistant
         run = self.client.beta.threads.runs.create_and_poll(
             thread_id=thread_id,
             assistant_id=self.assistant_id

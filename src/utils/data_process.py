@@ -121,21 +121,31 @@ def check_table_format(tables):
                 if not separator_valid:
                     table["type"] = "text"
 
-def process_topic_name(topic_name):
+def process_topic_name(topic_name, max_length=60):
     """
     处理专题名称，转换为合法的专题名称
     :param topic_name: 专题名称
+    :param max_length: 最大字符长度
     :return: 处理后的专题名称
     """
     # 1. 汉字转拼音
-    s = ''
+    full_result = ''
     for py in pypinyin.pinyin(topic_name, style=pypinyin.NORMAL):
-        s += ''.join(py)
-    s = s.lower()
-    valid_characters = r'[a-z0-9_-]'
+        full_result += ''.join(py)
+    full_result = full_result.lower()
 
+    # 2.如果处理后的名称超出指定长度，仅保留拼音首字母
+    if len(full_result) > max_length:
+        s = ''
+        for py in pypinyin.pinyin(topic_name, style=pypinyin.FIRST_LETTER):
+            s += ''.join(py)
+        s = s.lower()
+    else:
+        s = full_result
     # 使用正则表达式替换掉所有非法字符
+    valid_characters = r'[a-z0-9_-]'
     processed_topic_name = re.sub(f"[^{valid_characters}]", '', s)
+    # 首字母大写
     processed_topic_name = processed_topic_name.capitalize()
     return processed_topic_name
 

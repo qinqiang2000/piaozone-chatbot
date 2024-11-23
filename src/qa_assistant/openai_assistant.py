@@ -292,23 +292,19 @@ class Assistant(BaseAssistant):
             success_count = len(vector_store_files) - len(failed_vector_store_files) #成功删除的文件数量
 
             # 删除整个向量库
-            if is_processing_files or failed_vector_store_files or failed_openai_files or is_expired:
-                if failed_vector_store_files:
-                    logger.info(
-                        f"[asst_id={self.assistant_id}]：当前向量库: {self.client.beta.vector_stores.retrieve(vector_store_id=vector_store_id)}"
-                    )
-                logger.info(
-                    f"[asst_id={self.assistant_id}]：向量库 '{vector_store_id}' 下的部分文件正在处理中或无法正常删除, 强制删除整个向量库"
-                )
-                deleted_vector_store = self.client.beta.vector_stores.delete(
-                    vector_store_id=vector_store_id
-                )
-                if not deleted_vector_store.deleted:
-                    logger.error(
-                        f"[asst_id={self.assistant_id}]：删除向量库 '{deleted_vector_store.id}' 失败, 请后续手动删除并重新同步数据"
-                    )
-                else:
-                    success_count = len(vector_store_files)
+            # if is_processing_files or failed_vector_store_files or failed_openai_files or is_expired:
+            #     logger.info(
+            #         f"[asst_id={self.assistant_id}]：向量库 '{vector_store_id}' 下的部分文件正在处理中或无法正常删除, 强制删除整个向量库"
+            #     )
+            #     deleted_vector_store = self.client.beta.vector_stores.delete(
+            #         vector_store_id=vector_store_id
+            #     )
+            #     if not deleted_vector_store.deleted:
+            #         logger.error(
+            #             f"[asst_id={self.assistant_id}]：删除向量库 '{deleted_vector_store.id}' 失败, 请后续手动删除并重新同步数据"
+            #         )
+            #     else:
+            #         success_count = len(vector_store_files)
 
             logger.info(
                 f"[asst_id={self.assistant_id}]：已清空助手的文件: {success_count}/{len(vector_store_files)}"

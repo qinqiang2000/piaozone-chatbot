@@ -257,7 +257,7 @@ class Assistant(BaseAssistant):
 
 
             is_processing_files = any(
-                file.status != "completed" for file in vector_store_files
+                file.status == "in_progress" for file in vector_store_files
             )
             failed_vector_store_files = []
             failed_openai_files = []
@@ -292,19 +292,19 @@ class Assistant(BaseAssistant):
             success_count = len(vector_store_files) - len(failed_vector_store_files) #成功删除的文件数量
 
             # 删除整个向量库
-            # if is_processing_files or failed_vector_store_files or failed_openai_files or is_expired:
-            #     logger.info(
-            #         f"[asst_id={self.assistant_id}]：向量库 '{vector_store_id}' 下的部分文件正在处理中或无法正常删除, 强制删除整个向量库"
-            #     )
-            #     deleted_vector_store = self.client.beta.vector_stores.delete(
-            #         vector_store_id=vector_store_id
-            #     )
-            #     if not deleted_vector_store.deleted:
-            #         logger.error(
-            #             f"[asst_id={self.assistant_id}]：删除向量库 '{deleted_vector_store.id}' 失败, 请后续手动删除并重新同步数据"
-            #         )
-            #     else:
-            #         success_count = len(vector_store_files)
+            if is_processing_files or failed_vector_store_files or failed_openai_files or is_expired:
+                logger.info(
+                    f"[asst_id={self.assistant_id}]：向量库 '{vector_store_id}' 下的部分文件正在处理中或无法正常删除, 强制删除整个向量库"
+                )
+                deleted_vector_store = self.client.beta.vector_stores.delete(
+                    vector_store_id=vector_store_id
+                )
+                if not deleted_vector_store.deleted:
+                    logger.error(
+                        f"[asst_id={self.assistant_id}]：删除向量库 '{deleted_vector_store.id}' 失败, 请后续手动删除并重新同步数据"
+                    )
+                else:
+                    success_count = len(vector_store_files)
 
             logger.info(
                 f"[asst_id={self.assistant_id}]：已清空助手的文件: {success_count}/{len(vector_store_files)}"
@@ -313,6 +313,8 @@ class Assistant(BaseAssistant):
         except Exception as e:
             logger.error(f"[asst_id={self.assistant_id}]：清空助手文件失败：{e}\n{traceback.format_exc()}")
             return False
+
+
 
     def create_vs(self,file_paths_and_urls: list) -> bool:
         """
@@ -344,10 +346,14 @@ class Assistant(BaseAssistant):
         with open(path, "rb") as file:
             return self.client.files.create(file=file, purpose="assistants")
 
+
     def upload_file(self, file_paths_and_urls: list, vector_store_id: str) -> bool:
-        results = []
+        MAX_RETRIES = 3
+        batch_size = 100
         logger.debug(f"[asst_id={self.assistant_id}]：上传{len(file_paths_and_urls)}个文件到向量库 '{vector_store_id}'")
+
         # 上传 files
+        results = []
         max_concurrency = 5
         with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
             futures = {
@@ -363,8 +369,8 @@ class Assistant(BaseAssistant):
             exc = future.exception()
             if exc:
                 raise exc
-
             results.append((url, future.result()))
+
         # 将 file_id 和url的对应关系储存在数据库中
         data_list = [{
             'assistant_id': self.assistant_id,
@@ -372,33 +378,84 @@ class Assistant(BaseAssistant):
             'url': file_url
         } for file_url, file_ins in results]
         self.database.batch_insert_data(self.table_class, data_list)
-        # 将files 添加到vector store
-        batch_size = 100
+
+        # 将files添加到vector store，带重试逻辑,只有上传失败的情况下会重试
         file_ids = [f.id for _, f in results]
         total_files = len(file_ids)
+        retry_count = 0
         successful_files = 0
+        while retry_count < MAX_RETRIES and len(file_ids):
+            failed_file_ids = []
 
-        for i in range(0, total_files, batch_size):
-            batch = file_ids[i:i + batch_size]
-            file_batch = self.client.beta.vector_stores.file_batches.create_and_poll(
-                vector_store_id=vector_store_id,
-                file_ids=batch
-                # chunking_strategy=chunking_strategy
+            for i in range(0, len(file_ids), batch_size):
+                batch = file_ids[i:i + batch_size]
+                file_batch = self.client.beta.vector_stores.file_batches.create_and_poll(
+                    vector_store_id=vector_store_id,
+                    file_ids=batch
+                    # chunking_strategy=chunking_strategy
+                )
+
+                if file_batch.status == "completed":
+                    successful_files += file_batch.file_counts.completed
+                    failed_in_batch = file_batch.file_counts.failed
+                    if failed_in_batch > 0:
+                        try:
+                            # 获取这个批次中失败的文件ID
+                            failed_batch_files = []
+                            after = None
+                            limit = 100
+                            while True:
+                                response = self.client.beta.vector_stores.file_batches.list_files(
+                                    vector_store_id=vector_store_id,
+                                    batch_id=file_batch.id,
+                                    filter="failed",
+                                    limit=limit,
+                                    after=after
+                                )
+                                failed_batch_files.extend(response.data)
+                                if len(response.data) < limit:
+                                    break
+                                after = response.data[-1].id
+
+                            failed_file_ids.extend([file_ins.id for file_ins in failed_batch_files])
+                        except Exception as e:
+                            logger.error(f"[asst_id={self.assistant_id}]：获取失败文件列表时发生异常：{e}")
+
+                    logger.info(
+                        f"[asst_id={self.assistant_id}]：成功上传第 {i // batch_size + 1} 批文件：{file_batch.file_counts}"
+                    )
+                else:
+                    logger.error(
+                        f"[asst_id={self.assistant_id}]：第 {i // batch_size + 1} 批文件上传失败，文件上传终止，状态{file_batch.status}：{file_batch.file_counts}")
+                    return False
+
+            logger.info(
+                f"[asst_id={self.assistant_id}]：当前重试次数 {retry_count + 1}，成功上传{successful_files}/{total_files}"
             )
-            if file_batch.status == "completed":
-                successful_files += file_batch.file_counts.completed
+
+            if not failed_file_ids and successful_files == total_files:
+                logger.info(f"[asst_id={self.assistant_id}]：所有文件上传成功")
+                return True
+
+            # 如果还有失败的文件且未达到最大重试次数，则清理失败的文件并准备重试
+            if retry_count < MAX_RETRIES - 1:
                 logger.info(
-                    f"[asst_id={self.assistant_id}]：成功上传第 {i // batch_size + 1} 批文件：{file_batch.file_counts}")
+                    f"[asst_id={self.assistant_id}]：{total_files-successful_files}个文件上传失败，准备第{retry_count + 2}次重试"
+                )
+                # 删除向量库中失败的文件
+                for failed_id in failed_file_ids:
+                    self.delete_vector_store_file(vector_store_id, failed_id)
+
+                # 更新file_ids为失败的文件列表，准备重试
+                file_ids = failed_file_ids
+                retry_count += 1
             else:
                 logger.error(
-                    f"[asst_id={self.assistant_id}]：第 {i // batch_size + 1} 批文件上传失败，文件上传终止，状态{file_batch.status}：{file_batch.file_counts}")
+                    f"[asst_id={self.assistant_id}]：达到最大重试次数，{total_files-successful_files}个文件上传失败，请稍后重试"
+                )
                 return False
 
-        logger.info(f"[asst_id={self.assistant_id}]：所有文件处理完成。最终成功上传{successful_files}/{total_files}")
-        if successful_files != total_files:
-            logger.error(f"[asst_id={self.assistant_id}]：{total_files-successful_files}个文件上传失败，请重新同步")
-            return False
-        return True
+        return False
 
     def save_qa_to_database(self, session_id: str = "", msg_id: str = "", topic_name: str = "", question: str = "",
                              answer: str = "", has_answer: bool = False, asker: str = "", source: int = 0) -> None:

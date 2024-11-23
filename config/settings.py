@@ -82,7 +82,7 @@ AUTO_ENTRY_CONFIG = {
 
 ################## 日志 ##################
 LOG_DIR = os.path.join(root_dir, 'logs')
-LOG_LEVEL = "info"
+LOG_LEVEL = "debug"
 
 ################# database ################
 DB_CONFIG = {

@@ -293,6 +293,10 @@ class Assistant(BaseAssistant):
 
             # 删除整个向量库
             if is_processing_files or failed_vector_store_files or failed_openai_files or is_expired:
+                if failed_vector_store_files:
+                    logger.info(
+                        f"[asst_id={self.assistant_id}]：当前向量库: {self.client.beta.vector_stores.retrieve(vector_store_id=vector_store_id)}"
+                    )
                 logger.info(
                     f"[asst_id={self.assistant_id}]：向量库 '{vector_store_id}' 下的部分文件正在处理中或无法正常删除, 强制删除整个向量库"
                 )

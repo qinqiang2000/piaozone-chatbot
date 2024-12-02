@@ -59,7 +59,7 @@ class ZhiChiHandler:
         try:
             if is_auto_entry:
                 yq_info = self.config_manager.get_yq_info_by_asst_id(qa_assistant.assistant_id)
-                topic_name = '-'.join([title for _, title in yq_info])
+                topic_name = '/'.join([title for _, title in yq_info])
                 qa_assistant.save_qa_to_database(session_id=msg.cid,
                                                  msg_id=msg.msgid,
                                                  topic_name=topic_name,
@@ -67,6 +67,8 @@ class ZhiChiHandler:
                                                  answer=output,
                                                  has_answer=has_answer,
                                                  source=QSource.ZHICHI.value)
+                if msg.cid and msg.msgid:
+                    output = f"{output}\n\n点赞：{host}/like/{msg.cid}/{msg.msgid}\n点踩：{host}/dislike/{msg.cid}/{msg.msgid}"
 
         except:
             logger.error(f"[asst_id={qa_assistant.assistant_id};zhichi_session_id={session_id}]自动问答记录失败")

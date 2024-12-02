@@ -349,13 +349,13 @@ class Assistant(BaseAssistant):
 
     def upload_file(self, file_paths_and_urls: list, vector_store_id: str) -> bool:
         MAX_RETRIES = 3
-        batch_size = 100
+        BATCH_SIZE = 100
+        MAX_CONCURRENCY = 5
         logger.debug(f"[asst_id={self.assistant_id}]：上传{len(file_paths_and_urls)}个文件到向量库 '{vector_store_id}'")
 
-        # 上传 files
+        # 1.上传 files
         results = []
-        max_concurrency = 5
-        with ThreadPoolExecutor(max_workers=max_concurrency) as executor:
+        with ThreadPoolExecutor(max_workers=MAX_CONCURRENCY) as executor:
             futures = {
                 executor.submit(
                     self._upload_single_file,
@@ -371,7 +371,7 @@ class Assistant(BaseAssistant):
                 raise exc
             results.append((url, future.result()))
 
-        # 将 file_id 和url的对应关系储存在数据库中
+        # 2.将 file_id 和url的对应关系储存在数据库中
         data_list = [{
             'assistant_id': self.assistant_id,
             'file_id': file_ins.id,
@@ -379,16 +379,16 @@ class Assistant(BaseAssistant):
         } for file_url, file_ins in results]
         self.database.batch_insert_data(self.table_class, data_list)
 
-        # 将files添加到vector store，带重试逻辑,只有上传失败的情况下会重试
+        # 3.将files添加到vector store，带重试逻辑,只有上传失败的情况下会重试
         file_ids = [f.id for _, f in results]
         total_files = len(file_ids)
         retry_count = 0
         successful_files = 0
         while retry_count < MAX_RETRIES and len(file_ids):
+            ## 3.1 批量上传文件
             failed_file_ids = []
-
-            for i in range(0, len(file_ids), batch_size):
-                batch = file_ids[i:i + batch_size]
+            for i in range(0, len(file_ids), BATCH_SIZE):
+                batch = file_ids[i:i + BATCH_SIZE]
                 file_batch = self.client.beta.vector_stores.file_batches.create_and_poll(
                     vector_store_id=vector_store_id,
                     file_ids=batch
@@ -397,41 +397,36 @@ class Assistant(BaseAssistant):
 
                 if file_batch.status == "completed":
                     successful_files += file_batch.file_counts.completed
-                    failed_in_batch = file_batch.file_counts.failed
-                    if failed_in_batch > 0:
-                        try:
-                            # 获取这个批次中失败的文件ID
-                            failed_batch_files = []
-                            after = None
-                            limit = 100
-                            while True:
-                                response = self.client.beta.vector_stores.file_batches.list_files(
-                                    vector_store_id=vector_store_id,
-                                    batch_id=file_batch.id,
-                                    filter="failed",
-                                    limit=limit,
-                                    after=after
-                                )
-                                failed_batch_files.extend(response.data)
-                                if len(response.data) < limit:
-                                    break
-                                after = response.data[-1].id
-
-                            failed_file_ids.extend([file_ins.id for file_ins in failed_batch_files])
-                        except Exception as e:
-                            logger.error(f"[asst_id={self.assistant_id}]：batch_id '{file_batch.id}' 获取失败文件列表时发生异常：{e}")
-
                     logger.info(
-                        f"[asst_id={self.assistant_id}]：成功上传第 {i // batch_size + 1} 批文件：{file_batch.file_counts}"
+                        f"[asst_id={self.assistant_id}]：成功上传第 {i // BATCH_SIZE + 1} 批文件：{file_batch.file_counts}"
                     )
                 else:
                     logger.error(
-                        f"[asst_id={self.assistant_id}]：第 {i // batch_size + 1} 批文件上传失败，文件上传终止，状态{file_batch.status}：{file_batch.file_counts}")
+                        f"[asst_id={self.assistant_id}]：第 {i // BATCH_SIZE + 1} 批文件上传失败，文件上传终止，状态 '{file_batch.status}'：{file_batch.file_counts}")
                     return False
 
             logger.info(
                 f"[asst_id={self.assistant_id}]：当前重试次数 {retry_count + 1}，成功上传{successful_files}/{total_files}"
             )
+            # 3.2 获取上传失败的文件
+            try:
+                # 获取这个批次中失败的文件ID
+                after = None
+                limit = 100
+                while True:
+                    response = self.client.beta.vector_stores.files.list(
+                        vector_store_id=vector_store_id,
+                        filter="failed",
+                        limit=limit,
+                        after=after
+                    )
+                    failed_file_ids.extend([file_ins.id for file_ins in response.data])
+                    if len(response.data) < limit:
+                        break
+                    after = response.data[-1].id
+            except Exception as e:
+                logger.error(f"[asst_id={self.assistant_id}]： 获取失败文件列表时发生异常：{e}")
+
 
             if not failed_file_ids and successful_files == total_files:
                 logger.info(f"[asst_id={self.assistant_id}]：所有文件上传成功")
@@ -462,6 +457,8 @@ class Assistant(BaseAssistant):
         has_answer = '是' if has_answer else '否'
         upload_data = {'session_id': session_id, 'msg_id': msg_id, 'topic_name': topic_name, 'question': question,
                        'answer': answer, 'has_answer': has_answer, 'asker': asker, 'source': source}
+        if has_answer == '否':
+            upload_data['is_disliked'] = True
         self.database.insert_data(QARecord, upload_data)
         logger.info(f"[asst_id={self.assistant_id}]：问答数据录入成功")
 

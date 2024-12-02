@@ -145,7 +145,7 @@ class YZJHandler:
         #获取需要的信息并录入到数据库：
         if is_auto_entry:
             yq_info = self.config_manager.get_yq_info_by_yzj_token(yzj_token)
-            topic_name = '-'.join([title for _, title in yq_info])
+            topic_name = '/'.join([title for _, title in yq_info])
             qa_assistant.save_qa_to_database(session_id=session_id,
                                              msg_id=msg.msgId,
                                              topic_name=topic_name,

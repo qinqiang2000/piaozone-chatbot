@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, func, DateTime, Text, Index
+from sqlalchemy import create_engine, Column, Integer, String, func, DateTime, Text, Index,Boolean
 from sqlalchemy.dialects.mysql import LONGTEXT
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base

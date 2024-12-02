@@ -81,10 +81,14 @@ class ZhiChiHandler:
         })
 
     def query_qa(self,
-                  start_date: str = Query(None),
-                  end_date: str = Query(None),
-                  page: int = Query(1, ge=1),
-                  per_page: int = Query(50, ge=1, le=100)):
+                 start_date: str = Query(None),
+                 end_date: str = Query(None),
+                 page: int = Query(1, ge=1),
+                 per_page: int = Query(50, ge=1, le=100),
+                 is_liked: str = Query(None),
+                 is_disliked: str = Query(None),
+                 feedback: str = Query(None)
+                 ):
         try:
             if not start_date:
                 start_date = date.today().isoformat()
@@ -97,10 +101,22 @@ class ZhiChiHandler:
             # 查询数据
             with self.database.Session() as session:
                 query = session.query(
-                    QARecord.session_id, QARecord.msg_id, QARecord.question, QARecord.answer, QARecord.created_at
+                    QARecord.session_id, QARecord.msg_id, QARecord.question, QARecord.answer,
+                    QARecord.is_liked, QARecord.is_disliked, QARecord.created_at
                 ).filter(
                     QARecord.created_at >= start, QARecord.created_at <= end, QARecord.source == QSource.ZHICHI.value
                 )
+                if is_liked is not None:
+                    query = query.filter(QARecord.is_liked == (is_liked == 'true'))
+
+                if is_disliked is not None:
+                    query = query.filter(QARecord.is_disliked == (is_disliked == 'true'))
+
+                if feedback == 'true':  # 筛选已反馈
+                    query = query.filter((QARecord.is_liked == True) | (QARecord.is_disliked == True))
+                elif feedback == 'false':  # 筛选未反馈
+                    query = query.filter((QARecord.is_liked == False) & (QARecord.is_disliked == False))
+
                 # 获取总记录数
                 total_count = query.count()
 
@@ -113,6 +129,8 @@ class ZhiChiHandler:
                     "msg_id": qa.msg_id,
                     "question": qa.question,
                     "answer": qa.answer,
+                    "is_liked": qa.is_liked,
+                    "is_disliked": qa.is_disliked,
                     "created_at": qa.created_at.isoformat() if qa.created_at else None
                 }
                 for qa in qas
@@ -130,7 +148,12 @@ class ZhiChiHandler:
             logger.error(f"查询QA时出错: {e}")
             return JSONResponse(content={"success": False, "message": "查询出错"}, status=500)
 
-    def export_qa(self, start_date: str = Query(None), end_date: str = Query(None)):
+    def export_qa(self,
+                  start_date: str = Query(None),
+                  end_date: str = Query(None),
+                  is_liked: str = Query(None),
+                  is_disliked: str = Query(None),
+                  feedback: str = Query(None)):
         try:
             # 如果没有提供日期，使用当天日期
             if not start_date:
@@ -143,7 +166,7 @@ class ZhiChiHandler:
             end = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
 
             # 生成Excel文件
-            excel_file = self._generate_excel(start, end)
+            excel_file = self._generate_excel(start, end, is_liked, is_disliked, feedback)
             headers = {
                 "Content-Disposition": f"attachment; filename=QA_{start.date()}_{end.date()}.xlsx".encode("utf-8").decode("latin1")}
             media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -155,14 +178,26 @@ class ZhiChiHandler:
             logger.error(f"导出QA时出错: {e}")
             return JSONResponse(content={"success": False, "message": "导出出错"}, status_code=500)
 
-    def _generate_excel(self, start: datetime, end: datetime):
+    def _generate_excel(self, start: datetime, end: datetime, is_liked: str = None, is_disliked: str = None, feedback: str = None):
         try:
             with self.database.Session() as session:
                 query = session.query(
-                    QARecord.session_id, QARecord.msg_id, QARecord.question, QARecord.answer, QARecord.created_at
+                    QARecord.session_id, QARecord.msg_id, QARecord.question, QARecord.answer,
+                    QARecord.is_liked, QARecord.is_disliked, QARecord.created_at
                 ).filter(
                     QARecord.created_at >= start, QARecord.created_at <= end, QARecord.source == QSource.ZHICHI.value
                 )
+                if is_liked is not None:
+                    query = query.filter(QARecord.is_liked == (is_liked == 'true'))
+
+                if is_disliked is not None:
+                    query = query.filter(QARecord.is_disliked == (is_disliked == 'true'))
+
+                if feedback == 'true':  # 筛选已反馈
+                    query = query.filter((QARecord.is_liked == True) | (QARecord.is_disliked == True))
+                elif feedback == 'false':  # 筛选未反馈
+                    query = query.filter((QARecord.is_liked == False) & (QARecord.is_disliked == False))
+
                 qas = query.all()
             data = [
                 {
@@ -170,6 +205,8 @@ class ZhiChiHandler:
                     "消息id": qa.msg_id,
                     "问题": qa.question,
                     "回答": qa.answer,
+                    "点赞": qa.is_liked,
+                    "点踩": qa.is_disliked,
                     "创建时间": qa.created_at.isoformat() if qa.created_at else None
                 }
                 for qa in qas

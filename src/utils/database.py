@@ -130,7 +130,7 @@ class SQLDatabase:
             logger.error(f"查询数据错误: {e}")
             raise e
 
-    def complex_query_data(self, table_class, condition= None):
+    def complex_query_data(self, table_class, condition = None):
         """基于复杂条件查询数据"""
         try:
             with self.Session() as session:

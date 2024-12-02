@@ -363,8 +363,8 @@ class App(FastAPI):
         sync_id = ASSISTANT_CONFIG[asst_type]['sync_flow_config']['id']
         logger.info(f"语雀知识库'{','.join([x[1] for x in yq_info])}' 需要同步至assistant: '{assistant_id}'")
         # 通知云之家需要开始同步
-        # for yzj_token in yzj_tokens:
-        #     self.yzjhandler.notice_yzj_group(yzj_token=yzj_token, content="开始同步新文档至Assistant,如果有什么问题请同步结束后再提问。")
+        for yzj_token in yzj_tokens:
+            self.yzjhandler.notice_yzj_group(yzj_token=yzj_token, content="开始同步新文档至Assistant,如果有什么问题请同步结束后再提问。")
         # 同步知识库数据到assistant
         ret = self.sync_manager.sync_dict[sync_id].sync_yq_doc_to_dest(yq_info, assistant)
         success = "成功"
@@ -373,8 +373,8 @@ class App(FastAPI):
         else:
             success = "失败"
         # 通知云之家同步结束
-        # for yzj_token in yzj_tokens:
-        #     self.yzjhandler.notice_yzj_group(yzj_token=yzj_token, content=f"同步最新文档至Assistant{success}。")
+        for yzj_token in yzj_tokens:
+            self.yzjhandler.notice_yzj_group(yzj_token=yzj_token, content=f"同步最新文档至Assistant{success}。")
         return success
 
     async def force_sync(self, task: BackgroundTasks, assistant_id: str = Query(...)) -> JSONResponse:

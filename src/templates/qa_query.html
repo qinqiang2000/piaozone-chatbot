@@ -19,6 +19,24 @@
             <label class="block mb-2">结束日期：</label>
             <input type="date" v-model="endDate" class="border p-2">
         </div>
+		<div class="mb-4">
+            <label class="block mb-2 font-bold">筛选条件：</label>
+            <label class="block">
+                <input type="radio" v-model="filterType" value="liked"> 只显示点赞
+            </label>
+            <label class="block">
+                <input type="radio" v-model="filterType" value="disliked"> 只显示点踩
+            </label>
+            <label class="block">
+                <input type="radio" v-model="filterType" value="feedback"> 只显示已反馈
+            </label>
+            <label class="block">
+                <input type="radio" v-model="filterType" value="unfeedback"> 只显示未反馈
+            </label>
+            <label class="block">
+                <input type="radio" v-model="filterType" value="" checked> 显示全部
+            </label>
+        </div>
         <button @click="queryQA" class="bg-blue-500 text-white px-4 py-2 rounded">查询</button>
         <button @click="exportExcel" class="bg-green-500 text-white px-4 py-2 rounded ml-2">导出 Excel</button>
         
@@ -30,6 +48,8 @@
                         <th class="border p-2">消息id</th>
 						<th class="border p-2">问题</th>
                         <th class="border p-2">回答</th>
+						<th class="border p-2">点赞</th>
+						<th class="border p-2">点踩</th>
                         <th class="border p-2">创建时间</th>
                     </tr>
                 </thead>
@@ -39,6 +59,8 @@
 						<td class="border p-2">[[ qa.msg_id ]]</td>
 						<td class="border p-2">[[ qa.question ]]</td>
                         <td class="border p-2">[[ qa.answer ]]</td>
+						<td class="border p-2">[[ qa.is_liked ]]</td>
+						<td class="border p-2">[[ qa.is_disliked ]]</td>
                         <td class="border p-2">[[ qa.created_at ]]</td>
                     </tr>
                 </tbody>
@@ -61,19 +83,34 @@
                 qas: [],
                 currentPage: 1,
                 totalPages: 1,
-                perPage: 50
+                perPage: 50,
+                filterType: ''
             },
             methods: {
                 async queryQA() {
                     try {
-                        const response = await axios.get('/zhichi/qa/query', {
-                            params: {
-                                start_date: this.startDate,
-                                end_date: this.endDate,
-                                page: this.currentPage,
-                                per_page: this.perPage
-                            }
-                        });
+						const params = {
+                            start_date: this.startDate,
+                            end_date: this.endDate,
+                            page: this.currentPage,
+                            per_page: this.perPage
+                        };
+
+                        switch (this.filterType) {
+                            case 'liked':
+                                params.is_liked = 'true';
+                                break;
+                            case 'disliked':
+                                params.is_disliked = 'true';
+                                break;
+                            case 'feedback':
+                                params.feedback = 'true';
+                                break;
+                            case 'unfeedback':
+                                params.feedback = 'false';
+                                break;
+                        }
+                        const response = await axios.get('/zhichi/qa/query', { params });
                         this.qas = response.data.data;
                         this.totalPages = response.data.total_pages;
                     } catch (error) {
@@ -83,11 +120,27 @@
                 },
                 async exportExcel() {
                     try {
+						const params = {
+                            start_date: this.startDate,
+                            end_date: this.endDate
+                        };
+						
+						switch (this.filterType) {
+                            case 'liked':
+                                params.is_liked = 'true';
+                                break;
+                            case 'disliked':
+                                params.is_disliked = 'true';
+                                break;
+                            case 'feedback':
+                                params.feedback = 'true';
+                                break;
+                            case 'unfeedback':
+                                params.feedback = 'false';
+                                break;
+                        }
                         const response = await axios.get('/zhichi/qa/export', {
-                            params: {
-                                start_date: this.startDate,
-                                end_date: this.endDate
-                            },
+                            params,
                             responseType: 'blob'
                         });
                         const url = window.URL.createObjectURL(new Blob([response.data]));

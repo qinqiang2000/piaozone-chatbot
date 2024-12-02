@@ -419,7 +419,7 @@ class Assistant(BaseAssistant):
 
                             failed_file_ids.extend([file_ins.id for file_ins in failed_batch_files])
                         except Exception as e:
-                            logger.error(f"[asst_id={self.assistant_id}]：获取失败文件列表时发生异常：{e}")
+                            logger.error(f"[asst_id={self.assistant_id}]：batch_id '{file_batch.id}' 获取失败文件列表时发生异常：{e}")
 
                     logger.info(
                         f"[asst_id={self.assistant_id}]：成功上传第 {i // batch_size + 1} 批文件：{file_batch.file_counts}"

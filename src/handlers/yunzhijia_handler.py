@@ -147,12 +147,13 @@ class YZJHandler:
             yq_info = self.config_manager.get_yq_info_by_yzj_token(yzj_token)
             topic_name = '-'.join([title for _, title in yq_info])
             qa_assistant.save_qa_to_database(session_id=session_id,
-                                              topic_name=topic_name,
-                                              question=msg.content,
-                                              answer=output,
-                                              has_answer=has_answer,
-                                              asker=msg.operatorName,
-                                              source=QSource.YUNZHIJIA.value)
+                                             msg_id=msg.msgId,
+                                             topic_name=topic_name,
+                                             question=msg.content,
+                                             answer=output,
+                                             has_answer=has_answer,
+                                             asker=msg.operatorName,
+                                             source=QSource.YUNZHIJIA.value)
 
     def notice_yzj_group(self, yzj_token, content):
         start_data = {"content": content}

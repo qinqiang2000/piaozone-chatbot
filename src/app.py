@@ -49,7 +49,7 @@ class App(FastAPI):
 
         # 2. 初始化语雀到assistant 或者其他的同步组件
         yuque_repos = self.config_manager.get_all_yq_repo()
-        self.sync_manager = SyncManager(yuque_config=YUQUE_CONFIG,yuque_repos=yuque_repos,sync_configs=SYNC_CONFIGS)
+        self.sync_manager = SyncManager(yuque_config=YUQUE_CONFIG, yuque_repos=yuque_repos,sync_configs=SYNC_CONFIGS)
 
         # 3. 初始化数据库
         self.database = SQLDatabase(**DB_CONFIG)
@@ -82,6 +82,9 @@ class App(FastAPI):
         self.add_api_route("/yuque/config_update", self.yuque_update_config, methods=["POST"])
         self.add_api_route("/update_config", self.force_update_config, methods=["POST"]) # 强制更新配置
         self.add_api_route("/get_config", self.get_config, methods=["GET"])
+        # 添加点赞和点踩的路由
+        self.add_api_route("/like/{session_id}/{msg_id}", self.update_like, methods=["GET"])
+        self.add_api_route("/dislike/{session_id}/{msg_id}", self.update_dislike, methods=["GET"])
 
         # 8. 添加 QA 查询页面
         self.add_api_route("/zhichi/qa", self.zhichihandler.qa_query_page, methods=["GET"])
@@ -278,6 +281,79 @@ class App(FastAPI):
                              "answer_type": "3"}
                 }
             return JSONResponse(content=result)
+
+
+    def update_like(self, session_id: str, msg_id: str):
+        with self.database.Session() as session:
+            try:
+                # 直接执行UPDATE操作
+                result = session.query(QARecord).filter(
+                    QARecord.session_id == session_id,
+                    QARecord.msg_id == msg_id
+                ).update(
+                    {
+                        QARecord.is_liked: True,  # 设置点赞为True
+                        QARecord.is_disliked: False  # 同时确保点踩为False
+                    },
+                    synchronize_session=False
+                )
+
+                if result == 0:  # 如果没有更新任何记录
+                    raise HTTPException(
+                        status_code=404,
+                        detail="无法找到对应记录"
+                    )
+
+                session.commit()
+
+                return {
+                    "success": True,
+                    "message": "点赞成功"
+                }
+
+            except Exception as e:
+                session.rollback()
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"点赞失败: {str(e)}"
+                )
+
+    def update_dislike(self, session_id: str, msg_id: str):
+        with self.database.Session() as session:
+            try:
+                # 直接执行UPDATE操作
+                result = session.query(QARecord).filter(
+                    QARecord.session_id == session_id,
+                    QARecord.msg_id == msg_id
+                ).update(
+                    {
+                        QARecord.is_disliked: True,  # 设置点踩为True
+                        QARecord.is_liked: False  # 同时确保点赞为False
+                    },
+                    synchronize_session=False
+                )
+
+                if result == 0:  # 如果没有更新任何记录
+                    raise HTTPException(
+                        status_code=404,
+                        detail="无法找到对应记录"
+                    )
+
+                session.commit()
+
+                return {
+                    "success": True,
+                    "message": "点踩成功"
+                }
+
+            except Exception as e:
+                session.rollback()
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"点踩失败: {str(e)}"
+                )
+
+
 
     def sync_assistant(self, assistant_id: str):
         assistant = self.get_assistant(assistant_id)

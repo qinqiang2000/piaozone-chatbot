@@ -15,17 +15,6 @@ class FileAndUrlTable(Base):
     file_id = Column(String(255), nullable=False)
     url = Column(String(255), nullable=False)
 
-# class FAQ(Base):
-#     """储存机器人问答信息"""
-#     __tablename__ = 'FQA_record'
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     topic_name = Column(Text, nullable=False)
-#     question = Column(LONGTEXT, nullable=False)
-#     answer = Column(LONGTEXT, nullable=False)
-#     has_answer = Column(Text, nullable=False)
-#     asker = Column(Text, nullable=False)
-#     entry_time = Column(DateTime, default=datetime.datetime.now)
-
 class QARecord(Base):
     """储存机器人问答信息"""
     __tablename__ = 't_qa_record'
@@ -39,6 +28,8 @@ class QARecord(Base):
     asker = Column(String(255))
     source = Column(Integer, default=0) #用于区分问答来源 yunzhijia-0 or zhichi-1 or other-2
     created_at = Column(DateTime, default=func.now())
+    is_liked = Column(Boolean, default=False, comment='是否点赞')  # 新增点赞标志
+    is_disliked = Column(Boolean, default=False, comment='是否点踩')  # 新增点踩标志
     __table_args__ = (Index('ix_source_created_at', 'source', 'created_at'),)
 
 

@@ -127,6 +127,7 @@ class YZJHandler:
         except Exception as e:
             logger.error(f"大模型响应超时，yzj session_id '{session_id}':{e}")
         logger.info(f"[asst_id={qa_assistant.assistant_id};yzj_session_id={session_id}]回答内容: {output} ")
+        raw_output = output
         if session_id and msg.msgId:
             output = f"{output}\n\n点赞：{base_url}/like/{session_id}/{msg.msgId}\n点踩：{base_url}/dislike/{session_id}/{msg.msgId}"
 
@@ -155,7 +156,7 @@ class YZJHandler:
                                              msg_id=msg.msgId,
                                              topic_name=topic_name,
                                              question=msg.content,
-                                             answer=output,
+                                             answer=raw_output,
                                              has_answer=has_answer,
                                              asker=msg.operatorName,
                                              source=QSource.YZJ.value)

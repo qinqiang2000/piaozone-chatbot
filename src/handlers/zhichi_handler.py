@@ -58,8 +58,6 @@ class ZhiChiHandler:
         except Exception as e:
             logger.error(f"大模型响应超时，zhichi session_id '{session_id}':{e}")
         logger.info(f"[asst_id={qa_assistant.assistant_id};zhichi_session_id={session_id}]回答内容: {output} ")
-        if msg.cid and msg.msgid:
-            output = f"{output}\n\n点赞：{base_url}/like/{msg.cid}/{msg.msgid}\n点踩：{base_url}/dislike/{msg.cid}/{msg.msgid}"
         try:
             if is_auto_entry:
                 yq_info = self.config_manager.get_yq_info_by_asst_id(qa_assistant.assistant_id)
@@ -74,6 +72,8 @@ class ZhiChiHandler:
 
         except:
             logger.error(f"[asst_id={qa_assistant.assistant_id};zhichi_session_id={session_id}]自动问答记录失败")
+        if msg.cid and msg.msgid:
+            output = f"{output}\n\n点赞：{base_url}/like/{msg.cid}/{msg.msgid}\n点踩：{base_url}/dislike/{msg.cid}/{msg.msgid}"
         return output, has_answer
 
 

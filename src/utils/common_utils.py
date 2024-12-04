@@ -5,7 +5,7 @@ import pandas as pd
 import openpyxl
 import zipfile
 import tiktoken
-
+from fastapi.responses import HTMLResponse
 from src.utils.logger import logger
 
 
@@ -100,3 +100,181 @@ def openai_truncate_string(string, max_tokens):
     """Truncate the string to the maximum number of tokens."""
     encoding = tiktoken.get_encoding("cl100k_base")
     return encoding.decode(encoding.encode(string)[:max_tokens])
+
+
+
+def create_html_response(success: bool, message: str) -> HTMLResponse:
+    """
+    创建带有弹窗的 HTML 响应
+
+    :param success: 操作是否成功
+    :param message: 要显示的消息
+    :return: HTMLResponse 对象
+    """
+    # 根据 success 参数设置表情
+    icon = "&#128578;"  # 默认笑脸（操作成功）
+    if not success:
+        icon = "&#128577;"  # 操作失败时使用悲伤表情
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8">
+        <title>反馈结果</title>
+        <style>
+            body {{
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+                font-family: Arial, sans-serif;
+                background-color: rgba(0,0,0,0.1);
+            }}
+            .modal {{
+                background-color: white;
+                border-radius: 8px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                padding: 20px;
+                text-align: center;
+                max-width: 300px;
+                width: 90%;
+            }}
+            .modal-title {{
+                font-size: 24px;
+                color: {('green' if success else 'red')};
+                margin-bottom: 15px;
+            }}
+            .modal-message {{
+                font-size: 18px;
+                color: #666;
+                margin-bottom: 20px;
+                font-weight: bold;  /* 加粗消息文字 */
+            }}
+            .modal-icon {{
+                font-size: 50px;
+                margin-bottom: 20px;
+            }}
+            .modal-close {{
+                background-color: #f0f0f0;
+                border: none;
+                padding: 10px 20px;
+                border-radius: 5px;
+                cursor: pointer;
+                transition: background-color 0.3s;
+            }}
+            .modal-close:hover {{
+                background-color: #e0e0e0;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="modal">
+            <div class="modal-icon">
+                {icon} <!-- 根据 success 显示相应表情 -->
+            </div>
+            <div class="modal-message">{message}</div>
+            <button class="modal-close" onclick="window.close()">关闭</button>
+        </div>
+        <script>
+            // 如果在移动端或特定环境中无法自动关闭
+            setTimeout(() => {{
+                if (window.opener) {{
+                    window.close();
+                }}
+            }}, 3000);
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
+# def create_html_response(success: bool, message: str) -> HTMLResponse:
+#     """
+#     创建带有弹窗的 HTML 响应
+#
+#     :param success: 操作是否成功
+#     :param message: 要显示的消息
+#     :return: HTMLResponse 对象
+#     """
+#     # 根据 success 参数设置表情
+#     icon = "&#128578;"  # 默认笑脸（操作成功）
+#     if not success:
+#         icon = "&#128577;"  # 操作失败时使用悲伤表情
+#
+#     html_content = f"""
+#     <!DOCTYPE html>
+#     <html lang="zh-CN">
+#     <head>
+#         <meta charset="UTF-8">
+#         <title>反馈结果</title>
+#         <style>
+#             body {{
+#                 display: flex;
+#                 justify-content: center;
+#                 align-items: center;
+#                 height: 100vh;
+#                 margin: 0;
+#                 font-family: Arial, sans-serif;
+#                 background-color: rgba(0,0,0,0.1);
+#             }}
+#             .modal {{
+#                 background-color: white;
+#                 border-radius: 8px;
+#                 box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+#                 padding: 20px;
+#                 text-align: center;
+#                 max-width: 300px;
+#                 width: 90%;
+#             }}
+#             .modal-title {{
+#                 font-size: 24px;
+#                 color: {('green' if success else 'red')};
+#                 margin-bottom: 15px;
+#             }}
+#             .modal-message {{
+#                 font-size: 18px;
+#                 color: #666;
+#                 margin-bottom: 20px;
+#                 font-weight: bold;  /* 加粗消息文字 */
+#             }}
+#             .modal-icon {{
+#                 font-size: 50px;
+#                 margin-bottom: 20px;
+#             }}
+#             .modal-close {{
+#                 background-color: #f0f0f0;
+#                 border: none;
+#                 padding: 10px 20px;
+#                 border-radius: 5px;
+#                 cursor: pointer;
+#                 transition: background-color 0.3s;
+#             }}
+#             .modal-close:hover {{
+#                 background-color: #e0e0e0;
+#             }}
+#         </style>
+#     </head>
+#     <body>
+#         <div class="modal">
+#             <div class="modal-icon">
+#                 {icon} <!-- 根据 success 显示相应表情 -->
+#             </div>
+#             <div class="modal-message">{message}</div>
+#             <button class="modal-close" onclick="window.close()">关闭</button>
+#         </div>
+#         <script>
+#             // 自动关闭窗口，延迟3秒
+#             setTimeout(() => {{
+#                 window.close();
+#             }}, 3000);  // 3000毫秒后关闭
+#         </script>
+#     </body>
+#     </html>
+#     """
+#     return HTMLResponse(content=html_content)
+
+
+
+

@@ -30,6 +30,7 @@ from src.handlers.yunzhijia_handler import YZJHandler, YZJRobotMsg
 from src.handlers.zhichi_handler import ZhiChiHandler, ZCRobotMsg
 from src.qa_assistant.base_assistant import ASSTType
 from src.utils.constants import QSource
+from src.utils.common_utils import create_html_response
 from src.utils.database import SQLDatabase, QARecord
 from datetime import datetime, date
 from sqlalchemy import and_
@@ -483,24 +484,27 @@ class App(FastAPI):
                 )
 
                 if result == 0:  # 如果没有更新任何记录
-                    return {
-                        "success": False,
-                        "message": "点赞失败：无法找到对应记录"
-                    }
+                    logger.error(f"[session_id={session_id},msg_id={msg_id}]点赞失败：无法找到对应记录")
+                    return create_html_response(
+                        success=False,
+                        message="点赞失败"
+                    )
 
                 session.commit()
+                logger.info(f"[session_id={session_id},msg_id={msg_id}]点赞成功")
 
-                return {
-                    "success": True,
-                    "message": "点赞成功"
-                }
+                return create_html_response(
+                    success=True,
+                    message="点赞成功"
+                )
 
             except Exception as e:
                 session.rollback()
-                raise {
-                    "success": False,
-                    "message": f"点赞失败: {str(e)}"
-                }
+                logger.error(f"[session_id={session_id},msg_id={msg_id}]点赞失败: {str(e)}")
+                return create_html_response(
+                    success=False,
+                    message=f"点赞失败"
+                )
 
     def update_dislike(self, session_id: str, msg_id: str):
         with self.database.Session() as session:
@@ -517,24 +521,27 @@ class App(FastAPI):
                 )
 
                 if result == 0:  # 如果没有更新任何记录
-                    return {
-                        "success": False,
-                        "message": "点踩失败：无法找到对应记录"
-                    }
+                    logger.error(f"[session_id={session_id},msg_id={msg_id}]点踩失败：无法找到对应记录")
+                    return create_html_response(
+                        success=False,
+                        message="点踩失败"
+                    )
 
                 session.commit()
+                logger.error(f"[session_id={session_id},msg_id={msg_id}]点踩成功")
 
-                return {
-                    "success": True,
-                    "message": "点踩成功"
-                }
+                return create_html_response(
+                    success=True,
+                    message="点踩成功"
+                )
 
             except Exception as e:
                 session.rollback()
-                return {
-                    "success": False,
-                    "message": f"点踩失败: {str(e)}"
-                }
+                logger.error(f"[session_id={session_id},msg_id={msg_id}]点踩失败: {str(e)}")
+                return create_html_response(
+                    success=False,
+                    message="点踩失败"
+                )
 
     def sync_assistant(self, assistant_id: str):
         assistant = self.get_assistant(assistant_id)

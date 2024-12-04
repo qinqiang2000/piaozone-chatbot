@@ -458,7 +458,7 @@ class Assistant(BaseAssistant):
         upload_data = {'session_id': session_id, 'msg_id': msg_id, 'topic_name': topic_name, 'question': question,
                        'answer': answer, 'has_answer': has_answer, 'asker': asker, 'source': source}
         if has_answer == '否':
-            upload_data['is_disliked'] = True
+            upload_data['feedback'] = -1
         self.database.insert_data(QARecord, upload_data)
         logger.info(f"[asst_id={self.assistant_id}]：问答数据录入成功")
 

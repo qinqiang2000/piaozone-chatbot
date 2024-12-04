@@ -93,5 +93,6 @@ DB_CONFIG = {
     "db": os.getenv("DB_DB"),
     "charset": os.getenv("DB_CHARSET")
 }
-
+############### 服务器端url ############
+SERVER_URL = os.getenv("SERVER_URL")
 

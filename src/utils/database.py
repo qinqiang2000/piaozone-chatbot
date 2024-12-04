@@ -26,10 +26,9 @@ class QARecord(Base):
     answer = Column(Text)
     has_answer = Column(String(255))
     asker = Column(String(255))
-    source = Column(Integer, default=0) #用于区分问答来源 yunzhijia-0 or zhichi-1 or other-2
+    source = Column(String(255), default='yzj', comment='问答来源 yzj-云之家 zhichi-智齿 other-其他')
     created_at = Column(DateTime, default=func.now())
-    is_liked = Column(Boolean, default=False, comment='是否点赞')  # 新增点赞标志
-    is_disliked = Column(Boolean, default=False, comment='是否点踩')  # 新增点踩标志
+    feedback = Column(Integer, default=0, comment='用户反馈状态 0-未反馈 1-点赞 -1-点踩')
     __table_args__ = (Index('ix_source_created_at', 'source', 'created_at'),)
 
 

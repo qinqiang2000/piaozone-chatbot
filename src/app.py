@@ -3,20 +3,23 @@
 #
 import asyncio
 import os
-from typing import Any,Optional
+import io
+from typing import Any, Optional
 import sys
 import json
 import importlib
 import traceback
-from pydantic import BaseModel,ValidationError
+from pydantic import BaseModel, ValidationError
 from fastapi.exceptions import RequestValidationError
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from concurrent.futures import ThreadPoolExecutor
-from fastapi import FastAPI, Request, Query
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request, Query, HTTPException
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from starlette.background import BackgroundTasks
 from celery.result import AsyncResult
+import pandas as pd
 root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, root_dir)
 from config.settings import *
@@ -26,8 +29,9 @@ from src.sync.sync_flow_manger import SyncManager
 from src.handlers.yunzhijia_handler import YZJHandler, YZJRobotMsg
 from src.handlers.zhichi_handler import ZhiChiHandler, ZCRobotMsg
 from src.qa_assistant.base_assistant import ASSTType
+from src.utils.constants import QSource
 from src.utils.database import SQLDatabase, QARecord
-import datetime
+from datetime import datetime, date
 from sqlalchemy import and_
 import requests
 
@@ -54,6 +58,23 @@ class App(FastAPI):
         # 3. 初始化数据库
         self.database = SQLDatabase(**DB_CONFIG)
         self.database.create_table(table_class=QARecord) #建表储存问答信息
+        self.qarecord_field_map = {
+            "session_id": QARecord.session_id,
+            "msg_id": QARecord.msg_id,
+            "topic_name": QARecord.topic_name,
+            "question": QARecord.question,
+            "answer": QARecord.answer,
+            "has_answer": QARecord.has_answer,
+            "asker": QARecord.asker,
+            "source": QARecord.source,
+            "created_at": QARecord.created_at,
+            "feedback": QARecord.feedback
+        }
+        self.FEEDBACK_MAP = {
+                1: '点赞',
+                -1: '点踩',
+                0: '未反馈'
+            }
 
 
         # 4. 初始化gpt assistants
@@ -65,6 +86,8 @@ class App(FastAPI):
                                      config_manager=self.config_manager,
                                      database=self.database)
         self.zhichihandler = ZhiChiHandler(config_manager=self.config_manager, database=self.database)
+        self.handlers = {self.yzjhandler.HANDLER_TYPE: self.yzjhandler,
+                         self.zhichihandler.HANDLER_TYPE: self.zhichihandler}
 
 
         # 6、添加定时任务,每周6 2点触发定时同步任务，每天1点触发定时自动录入任务
@@ -86,12 +109,15 @@ class App(FastAPI):
         self.add_api_route("/like/{session_id}/{msg_id}", self.update_like, methods=["GET"])
         self.add_api_route("/dislike/{session_id}/{msg_id}", self.update_dislike, methods=["GET"])
 
-        # 8. 添加 QA 查询页面
-        self.add_api_route("/zhichi/qa", self.zhichihandler.qa_query_page, methods=["GET"])
-        self.add_api_route("/zhichi/qa/query", self.zhichihandler.query_qa, methods=["GET"])
-        self.add_api_route("/zhichi/qa/export", self.zhichihandler.export_qa, methods=["GET"])
+        # self.mount("/zhichi/static", StaticFiles(directory="src/static"), name="static")
+        self.templates = Jinja2Templates(directory="templates")
+        self.mount("/static", StaticFiles(directory="static"), name="static")
 
-        self.mount("/zhichi/static", StaticFiles(directory="src/static"), name="static")
+        # 8. 添加 QA 查询页面
+        self.add_api_route("/{app_type}/qa", self.qa_query_page, methods=["GET"])
+        self.add_api_route("/{app_type}/qa/query", self.query_qa, methods=["GET"])
+        self.add_api_route("/{app_type}/qa/export", self.export_qa, methods=["GET"])
+
 
     def init_asst(self) -> None:
         """初始化assistants"""
@@ -148,7 +174,7 @@ class App(FastAPI):
                 return None
         return assistant_ins
 
-    async def yzj_chat(self,request: Request, msg: YZJRobotMsg,
+    async def yzj_chat(self, request: Request, msg: YZJRobotMsg,
                            task: BackgroundTasks, yzj_token: str = Query(...)) -> JSONResponse:
         """
         云之家对话接口
@@ -183,7 +209,7 @@ class App(FastAPI):
             assistant = self.get_assistant(assistant_id)
             is_auto_entry = self.config_manager.get_auto_entry_info_by_yzj_token(yzj_token)
 
-            task.add_task(self.yzjhandler.chat_doc, assistant, yzj_token, msg, is_auto_entry)
+            task.add_task(self.yzjhandler.chat_doc, assistant, yzj_token, msg, SERVER_URL,is_auto_entry)
             result = {
                 "success": True,
                 "data": {"type": 2, "content": "请稍等..."}
@@ -258,7 +284,7 @@ class App(FastAPI):
             assistant = self.get_assistant(assistant_id)
             is_auto_entry = self.config_manager.index_data["zhichi_config"][assistant_id].get("is_auto_entry", False)
             loop = asyncio.get_event_loop()
-            answer, has_answer = await loop.run_in_executor(executor, self.zhichihandler.chat_doc, assistant, msg, is_auto_entry)
+            answer, has_answer = await loop.run_in_executor(executor, self.zhichihandler.chat_doc, assistant, msg, SERVER_URL, is_auto_entry)
             result = {
                 "ret_code": "000000",
                 "ret_msg": "操作成功",
@@ -282,6 +308,166 @@ class App(FastAPI):
                 }
             return JSONResponse(content=result)
 
+    async def qa_query_page(self, request: Request, app_type: str):
+        today = date.today().isoformat()
+        if app_type == "yzj":
+            handler = self.yzjhandler
+            appname = "云之家"
+        else:
+            handler = self.zhichihandler
+            appname = "智齿"
+        return self.templates.TemplateResponse("qa_query.html", {
+            "request": request,
+            "today": today,
+            "appname": appname,
+            "apptype": app_type,
+            "tableHeaders": handler.qa_headers,
+            "zhTableHeaders": handler.qa_headers_zh
+        })
+    def query_qa(self,
+                 app_type: str,
+                 start_date: str = Query(None),
+                 end_date: str = Query(None),
+                 page: int = Query(1, ge=1),
+                 per_page: int = Query(50, ge=1, le=100),
+                 feedback: str = Query(None)
+                 ):
+        try:
+            if not start_date:
+                start_date = date.today().isoformat()
+            if not end_date:
+                end_date = date.today().isoformat()
+            # 转换日期
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+            end = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+
+            # 查询数据
+            # 动态构建查询字段
+            query_fields = [self.qarecord_field_map[key] for key in self.handlers[app_type].qa_headers if key in self.qarecord_field_map]
+            with self.database.Session() as session:
+                query = session.query(*query_fields).filter(
+                    QARecord.created_at >= start, QARecord.created_at <= end, QARecord.source == app_type
+                )
+                # 根据反馈状态筛选
+                if feedback is not None:
+                    if feedback == 'liked':  # 筛选点赞
+                        query = query.filter(QARecord.feedback == 1)
+                    elif feedback == 'disliked':  # 筛选点踩
+                        query = query.filter(QARecord.feedback == -1)
+                    elif feedback == 'feedback':  # 筛选已反馈
+                        query = query.filter(QARecord.feedback != 0)
+                    elif feedback == 'unfeedback':  # 筛选未反馈
+                        query = query.filter(QARecord.feedback == 0)
+
+                # 获取总记录数
+                total_count = query.count()
+
+                # 分页
+                qas = query.order_by(QARecord.created_at.desc()).offset((page - 1) * per_page).limit(per_page).all()
+
+            result = []
+            for qa in qas:
+                one_ins = {}
+                for qa_field in self.handlers[app_type].qa_headers:
+                    if qa_field == 'feedback':
+                        one_ins[qa_field] = self.FEEDBACK_MAP.get(qa.feedback, '未知')
+                    elif qa_field == 'created_at':
+                        one_ins[qa_field] = qa.created_at.isoformat() if qa.created_at else None
+                    else:
+                        one_ins[qa_field] = getattr(qa, qa_field)
+                result.append(one_ins)
+            print(result)
+            logger.info(f"查询数据成功")
+            return JSONResponse(content={
+                "success": True,
+                "data": result,
+                "total": total_count,
+                "page": page,
+                "per_page": per_page,
+                "total_pages": (total_count + per_page - 1) // per_page
+            })
+        except Exception as e:
+            logger.error(f"查询QA时出错: {e}")
+            return JSONResponse(content={"success": False, "message": "查询出错"}, status=500)
+
+    def export_qa(self,
+                  app_type: str,
+                  start_date: str = Query(None),
+                  end_date: str = Query(None),
+                  feedback: str = Query(None)):
+        try:
+            # 如果没有提供日期，使用当天日期
+            if not start_date:
+                start_date = date.today().isoformat()
+            if not end_date:
+                end_date = date.today().isoformat()
+
+            # 转换日期
+            start = datetime.strptime(start_date, "%Y-%m-%d")
+            end = datetime.strptime(end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59)
+
+            if feedback is None:
+                feedback = "all"
+
+            # 生成Excel文件
+            excel_file = self._generate_excel(app_type, start, end, feedback)
+            headers = {
+                "Content-Disposition": f"attachment; filename=QA_{start.date()}_{end.date()}_{feedback}.xlsx".encode("utf-8").decode("latin1")}
+            media_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            logger.info(f"导出数据成功")
+
+            return StreamingResponse(excel_file, media_type=media_type, headers=headers)
+
+        except Exception as e:
+            logger.error(f"导出QA时出错: {e}")
+            return JSONResponse(content={"success": False, "message": "导出出错"}, status_code=500)
+
+    def _generate_excel(self, app_type: str, start: datetime, end: datetime, feedback: str = None):
+        try:
+            query_fields = [self.qarecord_field_map[key] for key in self.handlers[app_type].qa_headers if
+                            key in self.qarecord_field_map]
+            with self.database.Session() as session:
+                query = session.query(*query_fields).filter(
+                    QARecord.created_at >= start, QARecord.created_at <= end, QARecord.source == app_type
+                )
+                # 根据反馈状态筛选
+                if feedback is not None:
+                    if feedback == 'liked':  # 筛选点赞
+                        query = query.filter(QARecord.feedback == 1)
+                    elif feedback == 'disliked':  # 筛选点踩
+                        query = query.filter(QARecord.feedback == -1)
+                    elif feedback == 'feedback':  # 筛选已反馈
+                        query = query.filter(QARecord.feedback != 0)
+                    elif feedback == 'unfeedback':  # 筛选未反馈
+                        query = query.filter(QARecord.feedback == 0)
+
+                qas = query.all()
+            data = []
+            for qa in qas:
+                one_ins = {}
+                for idx, qa_field in enumerate(self.handlers[app_type].qa_headers):
+                    qa_field_zh = self.handlers[app_type].qa_headers_zh[idx]
+                    if qa_field == 'feedback':
+                        one_ins[qa_field_zh] = self.FEEDBACK_MAP.get(qa.feedback, '未知')
+                    elif qa_field == 'created_at':
+                        one_ins[qa_field_zh] = qa.created_at.isoformat() if qa.created_at else None
+                    else:
+                        one_ins[qa_field_zh] = getattr(qa, qa_field)
+                data.append(one_ins)
+
+            df = pd.DataFrame(data)
+            excel_file = io.BytesIO()
+            with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False, sheet_name='QA数据')
+
+            excel_file.seek(0)
+            return excel_file
+
+        except Exception as e:
+            logger.error(f"生成Excel文件时出错: {e}")
+            raise
+
+
 
     def update_like(self, session_id: str, msg_id: str):
         with self.database.Session() as session:
@@ -292,17 +478,16 @@ class App(FastAPI):
                     QARecord.msg_id == msg_id
                 ).update(
                     {
-                        QARecord.is_liked: True,  # 设置点赞为True
-                        QARecord.is_disliked: False  # 同时确保点踩为False
+                        QARecord.feedback: 1  # 设置反馈为点赞
                     },
                     synchronize_session=False
                 )
 
                 if result == 0:  # 如果没有更新任何记录
-                    raise HTTPException(
-                        status_code=404,
-                        detail="无法找到对应记录"
-                    )
+                    return {
+                        "success": False,
+                        "message": "点赞失败：无法找到对应记录"
+                    }
 
                 session.commit()
 
@@ -313,10 +498,10 @@ class App(FastAPI):
 
             except Exception as e:
                 session.rollback()
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"点赞失败: {str(e)}"
-                )
+                raise {
+                    "success": False,
+                    "message": f"点赞失败: {str(e)}"
+                }
 
     def update_dislike(self, session_id: str, msg_id: str):
         with self.database.Session() as session:
@@ -327,17 +512,16 @@ class App(FastAPI):
                     QARecord.msg_id == msg_id
                 ).update(
                     {
-                        QARecord.is_disliked: True,  # 设置点踩为True
-                        QARecord.is_liked: False  # 同时确保点赞为False
+                        QARecord.feedback: -1  # 设置反馈为点踩
                     },
                     synchronize_session=False
                 )
 
                 if result == 0:  # 如果没有更新任何记录
-                    raise HTTPException(
-                        status_code=404,
-                        detail="无法找到对应记录"
-                    )
+                    return {
+                        "success": False,
+                        "message": "点踩失败：无法找到对应记录"
+                    }
 
                 session.commit()
 
@@ -348,12 +532,10 @@ class App(FastAPI):
 
             except Exception as e:
                 session.rollback()
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"点踩失败: {str(e)}"
-                )
-
-
+                return {
+                    "success": False,
+                    "message": f"点踩失败: {str(e)}"
+                }
 
     def sync_assistant(self, assistant_id: str):
         assistant = self.get_assistant(assistant_id)
@@ -428,7 +610,6 @@ class App(FastAPI):
         logger.info("开始执行定时录入任务")
         await asyncio.get_event_loop().run_in_executor(executor, self.yzjhandler.auto_entry_qa)
         logger.info("定时录入任务结束")
-
 
     async def startup_tasks(self):
         """

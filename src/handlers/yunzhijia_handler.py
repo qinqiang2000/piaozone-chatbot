@@ -33,7 +33,7 @@ class YZJRobotMsg(BaseModel):
 
 
 class YZJHandler:
-    HANDLER_TYPE = "yunzhijia"
+    HANDLER_TYPE = QSource.YZJ
     def __init__(self, yunzhijia_config, auto_entry_config, config_manager,database):
         self.yunzhijia_notify_url = yunzhijia_config["notify_url"]
         self.max_img_num_in_card_notice = yunzhijia_config["max_img_num_in_card_notice"]
@@ -41,6 +41,9 @@ class YZJHandler:
         self.auto_entry_config = auto_entry_config
         self.config_manager = config_manager
         self.database = database
+        self.qa_headers = ["session_id", "msg_id", "topic_name", "question", "answer", "has_answer", "asker", "feedback", "created_at"]
+        self.qa_headers_zh = ["会话id", "消息id", "产品线", "问题", "答案", "是否存在答案", "提问人", "反馈状态", "创建时间"]
+
         logger.info(f"云之家处理器的初始化成功")
 
     def process_message(self, yzj_message: YZJRobotMsg):
@@ -103,7 +106,7 @@ class YZJHandler:
                 data_content[f"bigImage{j}Url"] = img_url
         return data_content
 
-    def chat_doc(self, qa_assistant, yzj_token, msg: YZJRobotMsg, is_auto_entry=False):
+    def chat_doc(self, qa_assistant, yzj_token, msg: YZJRobotMsg, base_url: str, is_auto_entry=False):
         """
         调用问答助手获取答案
         :param qa_assistant:
@@ -124,6 +127,8 @@ class YZJHandler:
         except Exception as e:
             logger.error(f"大模型响应超时，yzj session_id '{session_id}':{e}")
         logger.info(f"[asst_id={qa_assistant.assistant_id};yzj_session_id={session_id}]回答内容: {output} ")
+        if session_id and msg.msgId:
+            output = f"{output}\n\n点赞：{base_url}/like/{session_id}/{msg.msgId}\n点踩：{base_url}/dislike/{session_id}/{msg.msgId}"
 
         try:
             # 先截取图片url
@@ -153,11 +158,12 @@ class YZJHandler:
                                              answer=output,
                                              has_answer=has_answer,
                                              asker=msg.operatorName,
-                                             source=QSource.YUNZHIJIA.value)
+                                             source=QSource.YZJ.value)
 
     def notice_yzj_group(self, yzj_token, content):
         start_data = {"content": content}
         requests.post(self.yunzhijia_notify_url.format(yzj_token), json=start_data)
+
 
     def auto_entry_qa(self):
         """
@@ -184,7 +190,7 @@ class YZJHandler:
         yesterday = datetime.datetime.combine(now.date() - datetime.timedelta(days=1), datetime.time(0, 0))
         today = datetime.datetime.combine(now.date(), datetime.time(0, 0))
         filter_cond = and_(table_class.created_at >= yesterday, table_class.created_at <= today,
-                           table_class.source == QSource.YUNZHIJIA.value)
+                           table_class.source == QSource.YZJ.value)
         extract_data = self.database.complex_query_data(table_class, filter_cond)
         # 列表储存得到的数据
         results = [

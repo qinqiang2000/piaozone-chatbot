@@ -376,7 +376,6 @@ class App(FastAPI):
                     else:
                         one_ins[qa_field] = getattr(qa, qa_field)
                 result.append(one_ins)
-            print(result)
             logger.info(f"查询数据成功")
             return JSONResponse(content={
                 "success": True,

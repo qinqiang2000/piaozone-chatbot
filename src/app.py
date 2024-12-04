@@ -110,8 +110,8 @@ class App(FastAPI):
         self.add_api_route("/dislike/{session_id}/{msg_id}", self.update_dislike, methods=["GET"])
 
         # self.mount("/zhichi/static", StaticFiles(directory="src/static"), name="static")
-        self.templates = Jinja2Templates(directory="templates")
-        self.mount("/static", StaticFiles(directory="static"), name="static")
+        self.templates = Jinja2Templates(directory="src/templates")
+        self.mount("/static", StaticFiles(directory="src/static"), name="static")
 
         # 8. 添加 QA 查询页面
         self.add_api_route("/{app_type}/qa", self.qa_query_page, methods=["GET"])

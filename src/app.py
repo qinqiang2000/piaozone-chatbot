@@ -623,7 +623,7 @@ class App(FastAPI):
         """
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self.scheduler_sync_tasks, 'cron', day_of_week='sat', hour=2)
-        self.scheduler.add_job(self.scheduler_auto_entry_tasks, 'cron', day_of_week='*', hour=2)
+        # self.scheduler.add_job(self.scheduler_auto_entry_tasks, 'cron', day_of_week='*', hour=2)
         self.scheduler.start()
         logger.info("设置定时任务成功")
     async def shutdown_tasks(self):

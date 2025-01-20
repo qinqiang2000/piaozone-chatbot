@@ -23,10 +23,11 @@ class ConfigManager:
         self.index_data = self.set_config()
         logger.info("配置信息初始化成功")
 
-    def _process_sheet_data(self, sheet_data: List[List[str]]) -> pd.DataFrame:
+    def _process_sheet_data(self, sheet_data: List[List[str]], key_columns: Optional[List[str]] = None) -> pd.DataFrame:
         """
         处理语雀表格数据, 转换为 pandas DataFrame
         :param sheet_data: 语雀表格数据
+        :param key_columns: 关键列，如果关键列没有值需要过滤
         :return: pandas DataFrame
         """
         if len(sheet_data) >= 1:
@@ -38,9 +39,15 @@ class ConfigManager:
         del df['id']
         del df['remark']
         df.replace('', pd.NA, inplace=True)
-        df.dropna(how='any', inplace=True)
+        if key_columns:
+            df.dropna(subset=key_columns, how='any', inplace=True)
+        else:
+            df.dropna(how='any', inplace=True)
         df.replace(pd.NA, '', inplace=True)
-        df.drop_duplicates(inplace=True)
+        if key_columns:
+            df.drop_duplicates(subset=key_columns,inplace=True)
+        else:
+            df.drop_duplicates(inplace=True)
         df = df.astype(str).apply(lambda x: x.str.strip())
         df = df[df["valid"] == "Y"]
         return df
@@ -101,12 +108,12 @@ class ConfigManager:
         # 1. 获取助手配置信息
         asst_config_doc = self.get_config_doc(self.asst_config_url)
         asst_sheet_data = json.loads(asst_config_doc['body_sheet'])['data'][0]['table']
-        asst_config_df = self._process_sheet_data(asst_sheet_data)
+        asst_config_df = self._process_sheet_data(asst_sheet_data, ['repo','toc_title','assistant_id', 'assistant_type','llm_type','valid'])
         asst_config_dict = self._build_asst_index_data(asst_config_df)
         # 2. 获取云之家配置信息
         yzj_config_doc = self.get_config_doc(self.yzj_config_url)
         yzj_sheet_data = json.loads(yzj_config_doc['body_sheet'])['data'][0]['table']
-        yzj_config_df = self._process_sheet_data(yzj_sheet_data)
+        yzj_config_df = self._process_sheet_data(yzj_sheet_data, ['assistant_id', 'yzj_token', 'valid','is_auto_entry'])
         yzj_config_dict = self._build_yzj_index_data(yzj_config_df)
         for _, asst_info in yzj_config_dict.items():
             if asst_info["assistant_id"] not in asst_config_dict:
@@ -114,7 +121,7 @@ class ConfigManager:
         # 3. 获取智齿配置信息
         zhichi_config_doc = self.get_config_doc(self.zhichi_config_url)
         zhichi_sheet_data = json.loads(zhichi_config_doc['body_sheet'])['data'][0]['table']
-        zhichi_config_df = self._process_sheet_data(zhichi_sheet_data)
+        zhichi_config_df = self._process_sheet_data(zhichi_sheet_data,['assistant_id', 'valid','is_auto_entry'])
         zhichi_config_dict = self._build_zhichi_index_data(zhichi_config_df)
         for asst_id in zhichi_config_dict:
             if asst_id not in asst_config_dict:

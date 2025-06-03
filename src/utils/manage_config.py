@@ -83,10 +83,14 @@ class ConfigManager:
         for _, row in config_df.iterrows():
             yzj_token = row["yzj_token"]
             assistant_id = row["assistant_id"]
+            # 是否自动录入FAQ
             is_auto_entry = True if row["is_auto_entry"] == "Y" else False
+            # 是否接收系统信息配置
+            is_receive_system_msg = True if row.get("is_receive_system_msg", "N") == "Y" else False
             index_data[yzj_token] = {
                 "assistant_id": assistant_id,
-                "is_auto_entry": is_auto_entry
+                "is_auto_entry": is_auto_entry,
+                "is_receive_system_msg": is_receive_system_msg
             }
         return index_data
     def _build_zhichi_index_data(self, config_df: pd.DataFrame) -> None:
@@ -178,6 +182,14 @@ class ConfigManager:
         :return: is_auto_entry
         """
         return self.index_data.get("yzj_config", {}).get(yzj_token, {}).get("is_auto_entry", False)
+
+    def get_receive_system_msg_info_by_yzj_token(self, yzj_token: str) -> bool:
+        """
+        从云之家群token获取是否接收系统信息
+        :param yzj_token: 云之家群 token
+        :return: is_receive_system_msg
+        """
+        return self.index_data.get("yzj_config", {}).get(yzj_token, {}).get("is_receive_system_msg", False)
 
 
     def get_yq_info_by_yzj_token(self, yzj_token: str) -> List[Tuple[str, str]]:

@@ -78,7 +78,7 @@ class Assistant(BaseAssistant):
         vector_store_id = vector_store_ids[0]
         vector_store_files = self.client.beta.vector_stores.files.list(vector_store_id, filter="in_progress")
         if vector_store_files.data:
-            return "同步文件仍在处理中，请稍后再试", False
+            logger.error(f"[asst_id={self.assistant_id}]:同步文件仍在处理中, 请重新同步")
         #“您的上一个问题正在处理中，这条消息暂时无法接收。请稍后再重新发送您的问题。”
 
         # 2. 如果session_id不存在，创建一个新的thread;

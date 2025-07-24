@@ -144,11 +144,11 @@ class Assistant(BaseAssistant):
             try:
                 tool_iteration += 1
                 tool_calls = run.required_action.submit_tool_outputs.tool_calls
-                logger.debug(f"[asst_id={self.assistant_id}][run_id={run.id}]: 第{tool_iteration}轮工具调用，共{len(tool_calls)}个工具")
+                logger.info(f"[asst_id={self.assistant_id}][run_id={run.id}]: 第{tool_iteration}轮工具调用，共{len(tool_calls)}个工具")
                 
                 # 调用工具执行函数（现在使用_and_poll版本，会自动等待完成）
                 run = self.invoke_tools(thread_id, run)
-                logger.debug(f"[asst_id={self.assistant_id}][run_id={run.id}]: 第{tool_iteration}轮工具调用完成，状态: {run.status}")
+                logger.info(f"[asst_id={self.assistant_id}][run_id={run.id}]: 第{tool_iteration}轮工具调用完成，状态: {run.status}")
                 
             except Exception as e:
                 logger.error(f"[asst_id={self.assistant_id}][run_id={run.id}]: 第{tool_iteration}轮工具调用失败 - {str(e)}")

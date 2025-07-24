@@ -37,6 +37,9 @@ class ToolManager:
         self.tool_instances = {}  # 存储已初始化的类实例
         
         self._initialize_tools()
+        logger.info(f"ToolManager initialized successfully")
+        logger.info(f"tools: {self.tools}")
+        logger.info(f"tool_instances: {self.tool_instances}")
     
     def _initialize_tools(self):
         """初始化所有工具"""

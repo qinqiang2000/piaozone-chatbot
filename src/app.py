@@ -28,6 +28,7 @@ from src.utils.manage_config import ConfigManager
 from src.sync.sync_flow_manger import SyncManager
 from src.handlers.yunzhijia_handler import YZJHandler, YZJRobotMsg
 from src.handlers.zhichi_handler import ZhiChiHandler, ZCRobotMsg
+from src.handlers.simple_handler import SimpleHandler, SimpleMsg
 from src.qa_assistant.base_assistant import ASSTType
 from src.utils.constants import QSource
 from src.utils.common_utils import create_html_response
@@ -38,6 +39,7 @@ import requests
 
 class YQMsg(BaseModel):
     data: Optional[dict] = None
+
 
 executor = ThreadPoolExecutor(50)
 
@@ -87,8 +89,10 @@ class App(FastAPI):
                                      config_manager=self.config_manager,
                                      database=self.database)
         self.zhichihandler = ZhiChiHandler(config_manager=self.config_manager, database=self.database)
+        self.simplehandler = SimpleHandler(config_manager=self.config_manager, database=self.database)
         self.handlers = {self.yzjhandler.HANDLER_TYPE: self.yzjhandler,
-                         self.zhichihandler.HANDLER_TYPE: self.zhichihandler}
+                         self.zhichihandler.HANDLER_TYPE: self.zhichihandler,
+                         self.simplehandler.HANDLER_TYPE: self.simplehandler}
 
 
         # 6、添加定时任务,每周6 2点触发定时同步任务，每天1点触发定时自动录入任务
@@ -98,6 +102,7 @@ class App(FastAPI):
         # 7、添加 api_route
         self.add_api_route("/yzj/chat", self.yzj_chat, methods=["POST"])
         self.add_api_route("/zhichi/chat", self.zhichi_chat, methods=["POST"])
+        self.add_api_route("/simple/chat", self.simple_chat, methods=["POST"])
         # self.add_api_route("/yuque/webhook", self.yuque_sync_info_update, methods=["POST"])
         self.add_api_route("/sync", self.force_sync, methods=["POST"])
         self.add_api_route("/empty_file", self.empty_files, methods=["POST"])
@@ -308,6 +313,66 @@ class App(FastAPI):
                              "answer_type": "3"}
                 }
             return JSONResponse(content=result)
+    async def simple_chat(self, request: Request) -> JSONResponse:
+        """
+        简化的聊天接口
+        :param request: 包含 session_id, assistant_id, message 的请求
+        :return: JSON响应
+        """
+        try:
+            # 解析输入
+            body = await request.json()
+            chat_request = SimpleMsg(**body)
+            
+            logger.info(f"[session_id={chat_request.session_id}] 收到消息: {chat_request.message}")
+            
+            # 获取助手
+            assistant = self.get_assistant(chat_request.assistant_id)
+            if not assistant:
+                logger.error(f"未找到助手: {chat_request.assistant_id}")
+                return JSONResponse(
+                    content={
+                        "success": False,
+                        "error": "助手不存在",
+                        "session_id": chat_request.session_id
+                    },
+                    status_code=404
+                )
+            # 调用聊天处理
+            loop = asyncio.get_event_loop()
+            # 这里需要根据你的实际chat方法调整参数
+            answer = await loop.run_in_executor(
+                executor, 
+                self.simplehandler.chat,  # 替换为你的实际聊天处理方法
+                assistant, 
+                chat_request
+            )
+            return JSONResponse(content={
+                "success": True,
+                "session_id": chat_request.session_id,
+                "assistant_id": chat_request.assistant_id,
+                "response": answer
+            })
+        except ValidationError as e:
+            logger.error(f"输入验证错误: {e}")
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "error": "输入参数错误",
+                    "details": str(e)
+                },
+                status_code=422
+            )
+        except Exception as e:
+            logger.error(f"[session_id={body.get('session_id', 'unknown')}] 处理错误: {e}\n{traceback.format_exc()}")
+            return JSONResponse(
+                content={
+                    "success": False,
+                    "error": "服务器内部错误",
+                    "session_id": body.get('session_id', '')
+                },
+                status_code=500
+            )
 
     async def qa_query_page(self, request: Request, app_type: str):
         today = date.today().isoformat()

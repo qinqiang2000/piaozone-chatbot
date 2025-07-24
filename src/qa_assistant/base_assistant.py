@@ -4,6 +4,7 @@ from openai import OpenAI, AzureOpenAI, AsyncOpenAI, AsyncAzureOpenAI
 class ASSTType(str, Enum):
     """助手 类型"""
     OPENAI_ASSISTANT = "openai_assistant"
+    OPENAI_ASSISTANT_WITH_TOOLS = "openai_assistant_with_tools"
 
 
 # Assistant类，用于处理openai的对话请求

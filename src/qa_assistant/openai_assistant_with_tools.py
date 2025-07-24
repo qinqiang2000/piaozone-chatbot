@@ -1,5 +1,5 @@
 import time
-
+import json
 import traceback
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from openai import OpenAI, NotFoundError
@@ -9,19 +9,32 @@ from src.qa_assistant.base_assistant import BaseAssistant, ASSTType
 from src.utils.logger import logger
 from src.utils.data_process import process_topic_name
 from src.utils.database import SQLDatabase, FileAndUrlTable, QARecord
+from src.tools import TOOLS, ToolManager
 
 # Assistant类，用于处理openai的对话请求
 class Assistant(BaseAssistant):
     def __init__(self, assistant_id: str, assistant_config: dict, llm_configs: dict, topic: str, database: SQLDatabase):
         super().__init__(assistant_id, assistant_config, llm_configs)
         self.topic = process_topic_name(topic)
-        self.asst_type = ASSTType.OPENAI_ASSISTANT
+        self.asst_type = ASSTType.OPENAI_ASSISTANT_WITH_TOOLS
+        self.tools_config = assistant_config["tool_config"]
+        self.tool_manager = ToolManager(self.tools_config, assistant_config, TOOLS)
         self.database = database
         self.table_class = FileAndUrlTable
         # self.database.create_table(self.table_class)
         self.thread_map = {}
-        # 英文指定id创建thread，所以需要一个map来存储session id和thread_id的映射关系， TODO:后续换成 redis缓存或者MYSQL
-
+        
+    def create_assistant(self, name: str, instructions: str = None, model_name="gpt-4-1106-preview"):
+        assistant = self.client.beta.assistants.create(
+            name=name,
+            instructions=instructions,
+            model=model_name,
+            tools=self.tools_config
+        )
+        self.assistant_id = assistant.id
+        logger.info(f"创建助手 {assistant.id} 成功")
+        return assistant.id
+        
     def get_vector_store_ids(self):
         vector_store = []
         try:
@@ -34,16 +47,6 @@ class Assistant(BaseAssistant):
         except Exception as e:
             logger.error(f"[asst_id={self.assistant_id}]：获取vector store失败：{e}")
         return vector_store
-    def create_assistant(self, name: str, instructions: str = None, model_name="gpt-4-1106-preview"):
-        assistant = self.client.beta.assistants.create(
-            name=name,
-            instructions=instructions,
-            model=model_name,
-            tools=[{"type": "file_search"}]
-        )
-        self.assistant_id = assistant.id
-        logger.info(f"创建助手 {assistant.id} 成功")
-        return assistant.id
     def get_message_memory(self, thread_id):
         """Get the memory of a thread"""
         messages = []
@@ -62,6 +65,7 @@ class Assistant(BaseAssistant):
         if vector_files.data:
             return True
         return False
+
     def chat(self, session_id: str, content: str) -> str:
         """
         用户发送消息，调用openai的接口，返回回复
@@ -108,24 +112,157 @@ class Assistant(BaseAssistant):
             assistant_id=self.assistant_id
         )
 
+        # 7. 处理工具调用
+        run, error_msg = self.handle_tool_calls(thread_id, run)
+        if error_msg:
+            return error_msg, False
+
+        # 8. 处理最终结果
         if run.status == "completed":
             messages = self.client.beta.threads.messages.list(thread_id=thread_id, limit=1)
             logger.debug(f"[asst_id={self.assistant_id}][thread_id={thread_id}][session_id={session_id}][run_id={run.id}]: {messages.data[0].content[0]}")
             message_content = messages.data[0].content[0].text
             if message_content.annotations:
                 message_content = self.process_annotation(message_content)
-            # 判断是否包含答案
-            has_answer_key = ["上述问题无法在标准知识库中找到答案", "在标准知识库中未能找到明确答案",
-                              "上述问题无法在标凈知识库找到答案", "上述问题无法在标净知识库找到答案",
-                              "无法在标准知识库中找到更具体的答案"]
-            has_answer = not any(phrase in message_content.value for phrase in has_answer_key)
-
-            return message_content.value, has_answer
+            return message_content.value, True
         if run.status == "failed":
             logger.error(f"[asst_id={self.assistant_id}][run_id={run.id}][session_id={session_id}]状态：{run.status}. 明细:\n{run.last_error.message}")
         else:
             logger.error(f"[asst_id={self.assistant_id}][run_id={run.id}][session_id={session_id}]状态：{run.status}.")
         return None, False
+    def handle_tool_calls(self, thread_id: str, run: Run) -> tuple:
+        """
+        处理工具调用（支持串行调用）
+        :param thread_id: 线程ID
+        :param run: Run对象
+        :return: (updated_run, error_message) 元组，error_message为None表示成功
+        """
+        max_tool_iterations = 5  # 防止无限循环
+        tool_iteration = 0
+        
+        while run.status == "requires_action" and tool_iteration < max_tool_iterations:
+            try:
+                tool_iteration += 1
+                tool_calls = run.required_action.submit_tool_outputs.tool_calls
+                logger.debug(f"[asst_id={self.assistant_id}][run_id={run.id}]: 第{tool_iteration}轮工具调用，共{len(tool_calls)}个工具")
+                
+                # 调用工具执行函数（现在使用_and_poll版本，会自动等待完成）
+                run = self.invoke_tools(thread_id, run)
+                logger.debug(f"[asst_id={self.assistant_id}][run_id={run.id}]: 第{tool_iteration}轮工具调用完成，状态: {run.status}")
+                
+            except Exception as e:
+                logger.error(f"[asst_id={self.assistant_id}][run_id={run.id}]: 第{tool_iteration}轮工具调用失败 - {str(e)}")
+                return run, "工具调用过程中出现错误，请稍后再试"
+        
+        # 检查是否因为达到最大迭代次数而退出
+        if tool_iteration >= max_tool_iterations and run.status == "requires_action":
+            logger.error(f"[asst_id={self.assistant_id}][run_id={run.id}]: 工具调用超过最大迭代次数({max_tool_iterations})")
+            return run, "工具调用次数过多，请简化您的问题后重试"
+        
+        return run, None
+
+    def invoke_tools(self, thread_id: str, run: Run):
+        """Invoke tools"""
+        start_time = time.time()
+        tool_calls = run.required_action.submit_tool_outputs.tool_calls
+        tool_outputs = []
+        
+        for tool_call in tool_calls:
+            tool_name = tool_call.function.name
+            tool_call_id = tool_call.id
+            
+            # 解析工具参数
+            try:
+                tool_arguments = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
+            except json.JSONDecodeError as e:
+                logger.error(f"[asst_id={self.assistant_id}][tool={tool_name}]: 参数解析失败 - {str(e)}")
+                # 返回参数解析错误给大模型
+                tool_outputs.append({
+                    "tool_call_id": tool_call_id,
+                    "output": json.dumps({
+                        "error": f"参数解析失败: {str(e)}",
+                        "error_type": "json_decode_error",
+                        "raw_arguments": tool_call.function.arguments
+                    })
+                })
+                continue
+
+            # 检查工具是否存在
+            if self.tool_manager.get_tool(tool_name) is None:
+                logger.error(f"[asst_id={self.assistant_id}][tool={tool_name}]: 工具不存在")
+                tool_outputs.append({
+                    "tool_call_id": tool_call_id,
+                    "output": json.dumps({
+                        "error": f"工具 '{tool_name}' 不存在",
+                        "error_type": "tool_not_found",
+                        "available_tools": list(self.tool_manager.tools.keys())
+                    })
+                })
+                continue
+
+            # 执行工具
+            try:
+                logger.debug(f"[asst_id={self.assistant_id}][tool={tool_name}]: 开始执行工具，参数: {tool_arguments}")
+                tool_response = self.tool_manager.get_tool(tool_name)(**tool_arguments)
+                logger.debug(f"[asst_id={self.assistant_id}][tool={tool_name}]: 工具执行成功")
+                
+                # 确保响应可以序列化
+                try:
+                    json.dumps(tool_response)
+                    tool_outputs.append({
+                        "tool_call_id": tool_call_id,
+                        "output": json.dumps(tool_response)
+                    })
+                except (TypeError, ValueError) as e:
+                    logger.warning(f"[asst_id={self.assistant_id}][tool={tool_name}]: 响应序列化失败，转为字符串")
+                    tool_outputs.append({
+                        "tool_call_id": tool_call_id,
+                        "output": json.dumps({
+                            "result": str(tool_response),
+                            "warning": "原始响应无法序列化，已转换为字符串"
+                        })
+                    })
+                    
+            except Exception as e:
+                logger.error(f"[asst_id={self.assistant_id}][tool={tool_name}]: 工具执行失败 - {str(e)}")
+                # 返回详细的错误信息给大模型，让它可以理解并调整
+                error_info = {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "tool_name": tool_name,
+                    "arguments": tool_arguments,
+                    "message": f"工具 '{tool_name}' 执行失败: {str(e)}"
+                }
+                
+                # 如果是特定类型的错误，提供更多上下文信息
+                if isinstance(e, KeyError):
+                    error_info["suggestion"] = "请检查参数名称是否正确"
+                elif isinstance(e, ValueError):
+                    error_info["suggestion"] = "请检查参数值的格式或范围"
+                elif isinstance(e, TypeError):
+                    error_info["suggestion"] = "请检查参数类型是否匹配"
+                
+                tool_outputs.append({
+                    "tool_call_id": tool_call_id,
+                    "output": json.dumps(error_info)
+                })
+
+        end_time = time.time()
+        if end_time - start_time < 1:
+            time.sleep(2)
+        
+        try:
+            # 使用_and_poll版本，自动等待run完成
+            run = self.client.beta.threads.runs.submit_tool_outputs_and_poll(
+                thread_id=thread_id,
+                run_id=run.id,
+                tool_outputs=tool_outputs
+            )
+            return run
+        except Exception as e:
+            logger.error(f"[asst_id={self.assistant_id}][run_id={run.id}]: 提交工具输出失败 - {str(e)}")
+            # 这种情况下无法将错误返回给大模型，只能抛出异常
+            raise
 
     def process_annotation(self, message_content):
         annotations = message_content.annotations
@@ -504,3 +641,5 @@ class Assistant(BaseAssistant):
         """
         return self.thread_map.get(session_id)
 
+
+   

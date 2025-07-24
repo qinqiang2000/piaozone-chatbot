@@ -36,6 +36,51 @@ ASSISTANT_CONFIG = {
             }
 
         }
+    },
+    "openai_assistant_with_tools": {
+        "asst_type": "openai_assistant_with_tools",
+        "tool_config": [
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_logs_from_es",
+                    "description": "根据用户提供的trace_id从Elasticsearch中获取脱敏后的相关日志。在你确认从用户处获得了trace_id后，必须调用此工具。",
+                    "strict": True,
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "trace_id": {
+                                "type": "string",
+                                "description": "用于追踪单次请求的唯一标识符，例如 'e6a8b1c4-f2d3-4a56-b789-0123456789ab'"
+                            }
+                        },
+                        "additionalProperties": False,
+                        "required": ["trace_id"]
+                    }
+                }
+            },
+            {
+                "type": "file_search"
+            }
+            ],
+        "tool_settings":{
+            "get_logs_from_es": {
+                "host": os.getenv("ES_HOST"),
+                "port": os.getenv("ES_PORT"),
+                "username": os.getenv("ES_USERNAME"),
+                "password": os.getenv("ES_PASSWORD"),
+                "index": os.getenv("ES_INDEX")
+            }
+        },
+        "sync_flow_config": {
+            "id": "sync_dest_1", # 用于识别不同的同步流程
+            "type": "openai-asst",
+            "params": {
+                "file_num_limit": 10000,
+                "file_token_limit": 5000000
+            }
+
+        }
     }
 }
 ################## 同步设置 ##################

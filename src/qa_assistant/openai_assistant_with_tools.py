@@ -249,7 +249,7 @@ class Assistant(BaseAssistant):
 
         end_time = time.time()
         if end_time - start_time < 1:
-            time.sleep(2)
+            time.sleep(1)
         
         try:
             # 使用_and_poll版本，自动等待run完成

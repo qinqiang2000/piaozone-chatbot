@@ -17,6 +17,12 @@ LLM_CONFIGS = {
     },
     "openai": {
         "api_key": os.getenv("OPENAI_API_KEY"),
+    },
+    "zhichi": {
+        "appid": os.getenv("ZHICHI_APPID"),
+        "app_key": os.getenv("ZHICHI_APP_KEY"), 
+        "base_url": os.getenv("ZHICHI_BASE_URL"),
+        "api_base_url": os.getenv("ZHICHI_API_BASE_URL")
     }
 }
 
@@ -81,13 +87,18 @@ ASSISTANT_CONFIG = {
             }
 
         }
+    },
+     "zhichi_assistant": {
+        "asst_type": "zhichi_assistant",
+        "llm_option": "zhichi",  # 使用智齿配置
     }
 }
 ################## 同步设置 ##################
 ##同步的目的地类型 ： "openai-asst"
 SYNC_CONFIGS = []
 for asst in ASSISTANT_CONFIG.values():
-    SYNC_CONFIGS.append(asst["sync_flow_config"])
+    if "sync_flow_config" in asst:
+        SYNC_CONFIGS.append(asst["sync_flow_config"])
 ################## 语雀配置 ##################
 YUQUE_CONFIG = {
     "yuque_auth_token": os.getenv("YUQUE_AUTH_TOKEN"),

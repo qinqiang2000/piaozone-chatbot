@@ -36,14 +36,7 @@ class ConfigManager:
             logger.warning("配置文档不存在数据，请检查")
             return pd.DataFrame()
         # 删除无用列
-        del df['id']
-        del df['remark']
-        df.replace('', pd.NA, inplace=True)
-        if key_columns:
-            df.dropna(subset=key_columns, how='any', inplace=True)
-        else:
-            df.dropna(how='any', inplace=True)
-        df.replace(pd.NA, '', inplace=True)
+        df = df.drop(['id', 'remark'], axis=1, errors='ignore')
         if key_columns:
             df.drop_duplicates(subset=key_columns,inplace=True)
         else:
@@ -53,25 +46,31 @@ class ConfigManager:
         return df
     def _build_asst_index_data(self, config_df: pd.DataFrame) -> None:
         """
-        根据配置数据构建索引数据, 提高查询效率
+        根据配置数据构建索引数据, 严格检查空值
         :param config_df: 配置数据 DataFrame
         """
-        config_df.drop_duplicates(subset=["assistant_id", "repo", "toc_title"], inplace=True) # (助手id、repo、toc_title)是唯一的
+        config_df.drop_duplicates(subset=["assistant_id", "repo", "toc_title"], inplace=True)
         index_data = {}
+        
         for _, row in config_df.iterrows():
             repo = row["repo"]
             toc_title = row["toc_title"]
             assistant_id = row["assistant_id"]
             assistant_type = row["assistant_type"]
             llm_type = row["llm_type"]
+            
             if assistant_id not in index_data:
                 index_data[assistant_id] = {
                     "assistant_type": assistant_type,
-                    "llm_type": llm_type,
-                    "yq_info": [(repo, toc_title)]
+                    "llm_type": llm_type
                 }
-            else:
+            
+            # 严格检查repo是否为有效值（非空且不是纯空白）
+            if pd.notna(repo) and str(repo).strip():
+                if "yq_info" not in index_data[assistant_id]:
+                    index_data[assistant_id]["yq_info"] = []
                 index_data[assistant_id]["yq_info"].append((repo, toc_title))
+        
         return index_data
     def _build_yzj_index_data(self, config_df: pd.DataFrame) -> None:
         """
@@ -209,7 +208,7 @@ class ConfigManager:
         """
         repo_list = set()
         for _, asst_info in self.index_data.get("asst_config", {}).items():
-            for yq_info in asst_info['yq_info']:
+            for yq_info in asst_info.get('yq_info', []):
                 repo_list.add(yq_info[0])
         return list(repo_list)
 

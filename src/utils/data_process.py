@@ -192,6 +192,9 @@ def is_valid_image_url(url):
             content_type = response.headers.get('Content-Type', '')
             if content_type.startswith('image'):
                 return True
+            
+            if content_type.startswith('application/octet-stream'):
+                return True       
     except Exception as e:
         logger.error(f"图片URL校验失败，URL: {url}, 异常信息: {e}")
         return False

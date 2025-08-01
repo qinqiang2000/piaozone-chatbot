@@ -5,6 +5,7 @@ class ASSTType(str, Enum):
     """助手 类型"""
     OPENAI_ASSISTANT = "openai_assistant"
     OPENAI_ASSISTANT_WITH_TOOLS = "openai_assistant_with_tools"
+    ZHICHI_ASSISTANT = "zhichi_assistant"
 
 
 # Assistant类，用于处理openai的对话请求
@@ -37,6 +38,8 @@ class BaseAssistant:
                     self.model_name = deployment_name
                     break
             self.llm_kwargs = llm_configs.get("llm_kwargs", {})
+        elif self.llm_type == "zhichi":
+            pass
         else:
             raise ValueError(f"不支持的llm类型: {self.llm_type}")
 

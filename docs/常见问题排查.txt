@@ -1,0 +1,14 @@
+1：检查服务是否在运行：lsof -i:9999
+2：在本地进行请求，看是否有问题：
+curl -X POST "http://127.0.0.1:9999/yzj/chat?yzj_token=e0694f1348bd47ddb15f43acf4f5551e" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type":2,
+    "robotId":"test-robotId",
+    "robotName":"test-robotName",
+    "operatorOpenid":"test-userId",
+    "operatorName":"test-userName",
+    "time":1599727083000,
+    "msgId":"test-msgId",
+    "content":"什么是部分红冲"
+}'

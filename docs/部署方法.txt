@@ -1,0 +1,90 @@
+1.代码传到github
+2.服务器到piaozone....的目录下
+3.配置.env(如果有更新环境变量的话)
+4.执行命令：sh start.sh
+
+脚本内容：
+#! /bin/bash 
+#kill -9 $(netstat -nlp | grep :9999 | awk '{print $7}' | awk -F"/" '{ print $1 }')
+sudo netstat -tulnp | grep ':9999' | awk '{print $7}' | cut -d'/' -f1 | xargs -r sudo kill
+
+source venv/bin/activate
+
+git pull
+
+nohup python src/app.py >> run.log  2>&1 &
+
+#tailf run.log
+
+
+如果是全新部署：================================================
+1：创建虚拟环境
+python -m venv venv
+
+2:上传文件
+scp .env chat-bot:/root/kingdee/piaozone-chatbot/
+
+3:其他需要上传的文件
+check_git_resatart.sh
+docker-compose.yml
+start.sh
+
+4：执行依赖安装
+切换到虚拟环境 source venv/bin/activate
+
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+================================================
+
+下面是安装 MySQL 最新被支持（比如 8.0/8.4 LTS）的步骤：================================================
+
+注意：下面的命令无需使用sudo，否则会提示要管理员，无需管理员也能安装
+
+# 更新系统
+sudo dnf update -y
+
+# 下载并安装 MySQL Yum 仓库配置包（选择 EL9 平台）
+sudo dnf install -y https://dev.mysql.com/get/mysql84-community-release-el9-1.noarch.rpm
+
+# 可选：检查并启用所需版本的子仓库
+# 比如启用 MySQL 8.0 或 8.4
+sudo dnf config-manager --disable mysql80-community
+sudo dnf config-manager --enable mysql84-community
+# 或直接使用默认仓库（如果默认就是 8.x）
+
+# 安装 MySQL 服务端
+sudo dnf install mysql-server -y
+
+# 启动并设置开机自启
+sudo systemctl enable --now mysqld
+
+# 查看版本确认
+mysql --version
+
+# 执行安全配置脚本
+sudo mysql_secure_installation
+================================================================================================
+
+第一次安装，系统的 root 用户可以直接无密码登录数据库： 如果是高版本数据库，无法通过无密码登录，参见下文
+sudo mysql -u root
+
+修改 root 用户密码为 123456
+ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '123456';
+FLUSH PRIVILEGES;
+
+退出 MySQL：exit;
+
+测试登录：mysql -u root -p 123456
+
+在日志中查找mysql的临时密码
+grep 'temporary password' /var/log/mysqld.log
+
+修改密码：
+ALTER USER 'root'@'localhost' IDENTIFIED BY '*KdFpy123((';
+
+需要更新openai
+pip install --upgrade openai
+
+给脚本添加权限
+chmod +x your_script.sh  # 赋予执行权限
+
+建表！！！参照建表语句

@@ -122,8 +122,36 @@ class Assistant(BaseAssistant):
             
             logger.debug(f"[智齿助手]初始化对话请求: url={url}, params={params}")
             
-            response = requests.get(url, params=params, headers=headers, timeout=30)
-            response.raise_for_status()
+            try:
+                response = requests.get(url, params=params, headers=headers, timeout=30)
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as http_err:
+                status = getattr(http_err.response, 'status_code', None)
+                if status == 401:
+                    # 记录详细日志以定位token失效问题
+                    try:
+                        body_text = http_err.response.text
+                    except Exception:
+                        body_text = '<read_body_failed>'
+                    logger.warning(
+                        f"[智齿助手]初始化对话HTTP 401，将刷新token后重试一次 | "
+                        f"session_id={session_id}, robotid={self.robot_id}, bizid={bizid}, "
+                        f"token_tail={self.token[-6:] if self.token else 'None'}, "
+                        f"token_expire_at={self.token_expire_time}, now={datetime.now()}, "
+                        f"resp_headers={dict(http_err.response.headers) if http_err.response else {}}, "
+                        f"resp_body={body_text[:500]}"
+                    )
+                    # 刷新token并重试一次
+                    self.token = None
+                    self.token_expire_time = None
+                    new_token = self._get_token()
+                    if not new_token:
+                        return None
+                    headers['token'] = new_token
+                    response = requests.get(url, params=params, headers=headers, timeout=30)
+                    response.raise_for_status()
+                else:
+                    raise
             
             result = response.json()
             logger.debug(f"[智齿助手]初始化对话响应: {result}")
@@ -153,7 +181,7 @@ class Assistant(BaseAssistant):
             if session_id not in self.session_map:
                 conv_info = self._init_conversation(session_id)
                 if not conv_info:
-                    return "初始化对话失败，请稍后重试", False
+                    return "初始化对话异常，请重试一次", False
             else:
                 conv_info = self.session_map[session_id]
 
@@ -182,8 +210,36 @@ class Assistant(BaseAssistant):
             
             logger.debug(f"[智齿助手]提问请求: url={url}, payload={payload}")
             
-            response = requests.post(url, json=payload, headers=headers, timeout=60)
-            response.raise_for_status()
+            try:
+                response = requests.post(url, json=payload, headers=headers, timeout=60)
+                response.raise_for_status()
+            except requests.exceptions.HTTPError as http_err:
+                status = getattr(http_err.response, 'status_code', None)
+                if status == 401:
+                    # 记录详细日志以定位token失效问题
+                    try:
+                        body_text = http_err.response.text
+                    except Exception:
+                        body_text = '<read_body_failed>'
+                    logger.warning(
+                        f"[智齿助手]提问HTTP 401，将刷新token后重试一次 | "
+                        f"session_id={session_id}, robotid={self.robot_id}, bizid={conv_info.get('bizid')}, "
+                        f"token_tail={self.token[-6:] if self.token else 'None'}, "
+                        f"token_expire_at={self.token_expire_time}, now={datetime.now()}, "
+                        f"resp_headers={dict(http_err.response.headers) if http_err.response else {}}, "
+                        f"resp_body={body_text[:500]}"
+                    )
+                    # 刷新token并重试一次
+                    self.token = None
+                    self.token_expire_time = None
+                    new_token = self._get_token()
+                    if not new_token:
+                        return "获取token失败，请稍后重试", False
+                    headers['token'] = new_token
+                    response = requests.post(url, json=payload, headers=headers, timeout=60)
+                    response.raise_for_status()
+                else:
+                    raise
             
             result = response.json()
             logger.debug(f"[智齿助手]提问响应: {result}")

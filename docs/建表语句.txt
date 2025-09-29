@@ -1,0 +1,49 @@
+MySQL 建表步骤与 SQL（严格按照 src/utils/database.py）
+
+一、登录 MySQL
+1) 本地或能连到数据库的终端中执行：
+mysql -h localhost -P 3306 -u root -p
+# 输入密码后登录
+
+二、创建数据库并切换（与代码默认 charset 保持一致：utf8）
+CREATE DATABASE IF NOT EXISTS kb DEFAULT CHARACTER SET utf8;
+USE kb;
+
+三、创建表：t_file_and_url_mapping
+-- assistant_id/file_id/url 在模型中明确 nullable=False
+CREATE TABLE IF NOT EXISTS `t_file_and_url_mapping` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `assistant_id` VARCHAR(255) NOT NULL,
+  `file_id` VARCHAR(255) NOT NULL,
+  `url` VARCHAR(255) NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+四、创建表：t_qa_record（含组合索引）
+-- 其余字段未在模型中设置 nullable=False，按可空处理；Text 对应 MySQL 的 TEXT
+CREATE TABLE IF NOT EXISTS `t_qa_record` (
+  `id` INT NOT NULL AUTO_INCREMENT,
+  `session_id` VARCHAR(255) DEFAULT NULL,
+  `msg_id` VARCHAR(255) DEFAULT NULL,
+  `topic_name` VARCHAR(500) DEFAULT NULL,
+  `question` TEXT,
+  `answer` TEXT,
+  `has_answer` VARCHAR(255) DEFAULT NULL,
+  `asker` VARCHAR(255) DEFAULT NULL,
+  `source` VARCHAR(255) DEFAULT 'yzj' COMMENT '问答来源 yzj-云之家 zhichi-智齿 other-其他',
+  `created_at` DATETIME DEFAULT CURRENT_TIMESTAMP,
+  `feedback` INT DEFAULT 0 COMMENT '用户反馈状态 0-未反馈 1-点赞 -1-点踩',
+  PRIMARY KEY (`id`),
+  KEY `ix_source_created_at` (`source`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+五、验证结果
+SHOW TABLES;
+DESCRIBE t_file_and_url_mapping;
+DESCRIBE t_qa_record;
+SHOW INDEX FROM t_qa_record;
+
+六、代码中的连接参数（如需调整）
+# src/utils/database.py -> SQLDatabase.__init__
+# user=root password=12345 host=localhost port=3306 db=kb charset=utf8
+# 若未来改用 utf8mb4，请同步修改此参数并重建/迁移库表字符集。 

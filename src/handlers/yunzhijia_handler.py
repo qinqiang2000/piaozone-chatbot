@@ -128,8 +128,8 @@ class YZJHandler:
             logger.error(f"大模型响应超时，yzj session_id '{session_id}':{e}")
         logger.info(f"[asst_id={qa_assistant.assistant_id};yzj_session_id={session_id}]回答内容: {output} ")
         raw_output = output
-        if session_id and msg.msgId:
-            output = f"{output}\n\n点赞👍：{base_url}/like/{session_id}/{msg.msgId}\n点踩👎：{base_url}/dislike/{session_id}/{msg.msgId}"
+        #if session_id and msg.msgId:
+            #output = f"{output}\n\n点赞👍：{base_url}/like/{session_id}/{msg.msgId}\n点踩👎：{base_url}/dislike/{session_id}/{msg.msgId}"
 
         try:
             # 先截取图片url

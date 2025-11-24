@@ -69,7 +69,7 @@ AZURE_OPENAI_ENDPOINT="https://kdtest.openai.azure.com/"
 
 ```shell
 conda create -n llm python=3.10
-pip install -r requirements.txt
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
 ```
 
 启动服务

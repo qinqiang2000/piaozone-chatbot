@@ -39,6 +39,11 @@ class OpenAIAsstTransformer:
             docs_paths.extend(faq_paths)
         if table_docs_paths:
             docs_paths.extend(table_docs_paths)
+        
+        # ========== 保存按分类组织的文档副本（测试用，可独立删除） ==========
+        self._save_category_copy(yuque_docs, assistant_id, base_url, file_name_prefix)
+        # ========== 分类副本保存结束 ==========
+        
         return docs_paths
     def empty_cache(self, assistant_id: str):
         """清空临时文件夹下的文件"""
@@ -303,4 +308,159 @@ class OpenAIAsstTransformer:
     def increase_level(self, match):
         # 将标题级别升高一级
         return '#' + match.group(0)
+    
+    # ========== 以下为分类副本保存功能（测试用，可独立删除） ==========
+    def _save_category_copy(self, yuque_docs: List[dict], assistant_id: str, base_url: str, category_name: str):
+        """
+        保存按语雀目录结构组织的文档副本（仅用于测试调试）
+        :param yuque_docs: 语雀文档列表
+        :param assistant_id: 助手ID
+        :param base_url: 基础URL
+        :param category_name: 分类名称（即toc_title）
+        """
+        if not category_name:
+            logger.debug(f"[asst_id={assistant_id}]：分类名称为空，跳过分类副本保存")
+            return
+        
+        # 创建分类副本目录: openai_tmp/{assistant_id}/category/{category_name}/
+        category_base_path = os.path.join(self.tmp_dir, str(assistant_id), "category", category_name)
+        os.makedirs(category_base_path, exist_ok=True)
+        
+        saved_count = 0
+        for doc in yuque_docs:
+            try:
+                
+                # 跳过未发布或空文档
+                if doc.get("published_at") is None:
+                    continue
+                
+                doc_format = doc.get("format", "")
+                doc_title = doc.get("title", "untitled")
+                
+                # 处理普通文档（lake格式）
+                if doc_format == "lake" and "body" in doc and doc["body"]:
+                    # ========== 调试功能：使用多级目录路径（可独立删除） ==========
+                    debug_path_segments = doc.get("_debug_directory_path", [])
+                    if debug_path_segments:
+                        # 检查是否第一个路径段与category_name重复，如果重复则跳过
+                        if debug_path_segments and debug_path_segments[0] == category_name:
+                            # 跳过重复的顶级目录
+                            actual_path_segments = debug_path_segments[1:] if len(debug_path_segments) > 1 else []
+                        else:
+                            actual_path_segments = debug_path_segments
+                        
+                        if actual_path_segments:
+                            # 使用去重后的目录路径
+                            sub_dir_path = os.path.join(category_base_path, *actual_path_segments)
+                            os.makedirs(sub_dir_path, exist_ok=True)
+                            file_path = os.path.join(sub_dir_path, data_process.process_file_name(doc_title) + ".md")
+                            path_info = f"{category_name}/{'/'.join(actual_path_segments)}"
+                        else:
+                            # 只有顶级目录，直接使用category_base_path
+                            file_path = os.path.join(category_base_path, data_process.process_file_name(doc_title) + ".md")
+                            path_info = category_name
+                    else:
+                        # 回退到原来的逻辑
+                        file_path = os.path.join(category_base_path, data_process.process_file_name(doc_title) + ".md")
+                        path_info = category_name
+                    # ========== 调试功能结束 ==========
+                    
+                    body = self.transform_md_body(doc["body"], doc_title)
+                    file_name = data_process.process_file_name(doc_title) + ".md"
+                    
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(body)
+                    saved_count += 1
+                    logger.debug(f"[asst_id={assistant_id}]：保存分类副本 [{path_info}/{file_name}]")
+                
+                # 处理FAQ文档（markdown格式）
+                elif (doc_format == "markdown" or doc_format == "lake") and "faq" in doc_title.lower() and doc.get("body"):
+                    # ========== 调试功能：使用多级目录路径（可独立删除） ==========
+                    debug_path_segments = doc.get("_debug_directory_path", [])
+                    if debug_path_segments:
+                        # 检查是否第一个路径段与category_name重复，如果重复则跳过
+                        if debug_path_segments and debug_path_segments[0] == category_name:
+                            # 跳过重复的顶级目录
+                            actual_path_segments = debug_path_segments[1:] if len(debug_path_segments) > 1 else []
+                        else:
+                            actual_path_segments = debug_path_segments
+                        
+                        if actual_path_segments:
+                            # 使用去重后的目录路径
+                            sub_dir_path = os.path.join(category_base_path, *actual_path_segments)
+                            os.makedirs(sub_dir_path, exist_ok=True)
+                            file_path = os.path.join(sub_dir_path, data_process.process_file_name(doc_title) + ".md")
+                            path_info = f"{category_name}/{'/'.join(actual_path_segments)}"
+                        else:
+                            # 只有顶级目录，直接使用category_base_path
+                            file_path = os.path.join(category_base_path, data_process.process_file_name(doc_title) + ".md")
+                            path_info = category_name
+                    else:
+                        # 回退到原来的逻辑
+                        file_path = os.path.join(category_base_path, data_process.process_file_name(doc_title) + ".md")
+                        path_info = category_name
+                    # ========== 调试功能结束 ==========
+                    
+                    body = self.transform_md_body(doc["body"], doc_title)
+                    file_name = data_process.process_file_name(doc_title) + ".md"
+                    
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(body)
+                    saved_count += 1
+                    logger.debug(f"[asst_id={assistant_id}]：保存分类副本 [{path_info}/{file_name}]")
+                
+                # 处理表格文档（lakesheet格式）
+                elif doc_format == "lakesheet" and "body_sheet" in doc and doc["body_sheet"]:
+                    # ========== 调试功能：使用多级目录路径（可独立删除） ==========
+                    debug_path_segments = doc.get("_debug_directory_path", [])
+                    if debug_path_segments:
+                        # 检查是否第一个路径段与category_name重复，如果重复则跳过
+                        if debug_path_segments and debug_path_segments[0] == category_name:
+                            # 跳过重复的顶级目录
+                            actual_path_segments = debug_path_segments[1:] if len(debug_path_segments) > 1 else []
+                        else:
+                            actual_path_segments = debug_path_segments
+                        
+                        if actual_path_segments:
+                            # 使用去重后的目录路径
+                            sub_dir_path = os.path.join(category_base_path, *actual_path_segments)
+                            os.makedirs(sub_dir_path, exist_ok=True)
+                            path_info = f"{category_name}/{'/'.join(actual_path_segments)}"
+                        else:
+                            # 只有顶级目录，直接使用category_base_path
+                            sub_dir_path = category_base_path
+                            path_info = category_name
+                    else:
+                        # 回退到原来的逻辑
+                        sub_dir_path = category_base_path
+                        path_info = category_name
+                    # ========== 调试功能结束 ==========
+                    
+                    sheets = json.loads(doc['body_sheet'])['data']
+                    for sheet in sheets:
+                        try:
+                            table = sheet.get('table')
+                            if not table or table == [['']]:
+                                continue
+                            
+                            df = pd.DataFrame(table)
+                            data_process.clear_pd_nan(df)
+                            htm = f"<h1>{doc_title}</h1>\n<h2>{sheet['name']}</h2>\n" + df.to_html(index=False)
+                            
+                            sheet_name = data_process.process_file_name(sheet['name'])
+                            file_name = data_process.process_file_name(doc_title) + "_" + sheet_name + ".html"
+                            file_path = os.path.join(sub_dir_path, file_name)
+                            
+                            with open(file_path, "w", encoding="utf-8") as f:
+                                f.write(htm)
+                            saved_count += 1
+                            logger.debug(f"[asst_id={assistant_id}]：保存分类副本 [{path_info}/{file_name}]")
+                        except Exception as e:
+                            logger.debug(f"[asst_id={assistant_id}]：表格文档[{doc_title} - {sheet['name']}]分类副本保存失败：{e}")
+            
+            except Exception as e:
+                logger.debug(f"[asst_id={assistant_id}]：文档[{doc.get('title', 'unknown')}]分类副本保存失败：{e}")
+        
+        logger.debug(f"[asst_id={assistant_id}]：分类[{category_name}]副本保存完成，共保存 {saved_count} 个文件")
+    # ========== 分类副本保存功能结束 ==========
 

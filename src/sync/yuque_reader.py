@@ -55,6 +55,24 @@ class YQReader:
         tocs = self._get_tocs_from_parent(repo, toc_uuid)
         #2.2 获取一级目录下的所有文档
         docs = self._get_doc_from_tocs(tocs)
+        
+        # ========== 调试功能：为文档添加目录路径信息（可独立删除） ==========
+        try:
+            # 获取完整的目录结构
+            full_toc_list = self.repo2tocs_map.get(repo, [])
+            if full_toc_list:
+                # 构建文档路径映射
+                doc_paths = self._build_doc_directory_paths(repo, full_toc_list)
+                
+                # 为每个文档添加路径信息
+                for doc in docs:
+                    doc_id = doc.get("id")
+                    if doc_id and doc_id in doc_paths:
+                        doc["_debug_directory_path"] = doc_paths[doc_id]
+        except Exception as e:
+            pass
+        # ========== 调试功能结束 ==========
+        
         return docs
 
     def get_topic_title_for_single_doc(self,repo, doc_id, action):
@@ -156,6 +174,51 @@ class YQReader:
                     doc["repo"] = toc["repo"]
                     docs.append(doc)
         return docs
+
+    # ========== 调试功能：构建文档目录路径（可独立删除） ==========
+    def _build_doc_directory_paths(self, repo: str, toc_list: List[dict]) -> dict:
+        """
+        构建文档的完整目录路径（仅用于调试分类）
+        :param repo: 知识库标识
+        :param toc_list: 目录列表
+        :return: {doc_id: [path_segments]} 文档ID到路径段列表的映射
+        """
+        # 构建uuid到toc的映射
+        uuid_to_toc = {toc["uuid"]: toc for toc in toc_list}
+        
+        # 为每个文档构建路径
+        doc_paths = {}
+        for toc in toc_list:
+            if toc["type"] == "DOC" and toc.get("doc_id"):
+                path_segments = self._get_path_segments_to_root(toc["uuid"], uuid_to_toc)
+                doc_paths[toc["doc_id"]] = path_segments
+        
+        return doc_paths
+    
+    def _get_path_segments_to_root(self, uuid: str, uuid_to_toc: dict) -> List[str]:
+        """
+        获取从当前节点到根节点的路径段列表（仅用于调试分类）
+        :param uuid: 当前节点uuid
+        :param uuid_to_toc: uuid到toc的映射
+        :return: 路径段列表，从根到叶子的顺序
+        """
+        path_segments = []
+        current = uuid_to_toc.get(uuid)
+        
+        while current:
+            # 只收集TITLE类型的路径段（目录名称）
+            if current["type"] == "TITLE":
+                # 将目录名中的斜杠替换为下划线，避免路径冲突
+                clean_title = current["title"].replace("/", "_")
+                path_segments.append(clean_title)
+            
+            parent_uuid = current.get("parent_uuid", "")
+            if parent_uuid == "":
+                break
+            current = uuid_to_toc.get(parent_uuid)
+        
+        return list(reversed(path_segments))  # 从根到叶子的顺序
+    # ========== 调试功能结束 ==========
 
     def list_yuque_toc(self,repo: str) -> List[dict]:
         """
